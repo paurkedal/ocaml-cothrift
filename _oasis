@@ -12,7 +12,8 @@ Library "cothrift"
   Path: lib
   Modules:
     Thrift,
-    Thrift_sig
+    Thrift_sig,
+    Thrift_protocol_binary
 
 Document api
   Title: Cothrift API Reference

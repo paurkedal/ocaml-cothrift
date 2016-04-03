@@ -31,6 +31,7 @@ module type In_transport = sig
   val read_avail : bytes -> int -> int -> int io
   val read_exact : bytes -> int -> int -> unit io
   val read_char : unit -> char io
+  val close : unit -> unit io
 end
 
 module type Out_transport = sig
@@ -38,6 +39,7 @@ module type Out_transport = sig
 
   val write : bytes -> int -> int -> unit io
   val flush : unit -> unit io
+  val close : unit -> unit io
 end
 
 module type In_protocol = sig
@@ -47,7 +49,7 @@ module type In_protocol = sig
   val read_message_end : unit -> unit io
   val read_struct_begin : unit -> string io
   val read_struct_end : unit -> unit io
-  val read_field_begin : (string * tag * int) option io
+  val read_field_begin : unit -> (string * tag * int) option io
   val read_field_end : unit -> unit io
   val read_map_begin : unit -> (tag * tag * int) io
   val read_map_end : unit -> unit io
@@ -64,6 +66,8 @@ module type In_protocol = sig
   val read_string : unit -> string io
   val read_binary : unit -> string io
   val read_binary_bytes : unit -> Bytes.t io
+
+  val close : unit -> unit io
 end
 
 module type Out_protocol = sig
@@ -91,6 +95,9 @@ module type Out_protocol = sig
   val write_string : string -> unit io
   val write_binary : string -> unit io
   val write_binary_bytes : Bytes.t -> int -> int -> unit io
+
+  val flush : unit -> unit io
+  val close : unit -> unit io
 end
 
 module type Protocol = sig
