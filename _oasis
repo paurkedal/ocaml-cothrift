@@ -15,6 +15,15 @@ Library "cothrift"
     Thrift_sig,
     Thrift_protocol_binary
 
+Library "cothrift-lwt"
+  Path: lib
+  FindlibParent: cothrift
+  FindlibName: lwt
+  Modules:
+    Thrift_lwt,
+    Thrift_lwt_sig
+  BuildDepends: cothrift, lwt
+
 Document api
   Title: Cothrift API Reference
   Type: ocamlbuild (0.4)
