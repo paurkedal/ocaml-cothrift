@@ -48,8 +48,8 @@ module Make (Io : Thrift_sig.Io) = struct
       with Failure msg -> protocol_error Invalid_data msg
 
     let read_i16 () = read_buf 2 >|= fun () ->
-      get_byte 0 lsl 8 lor
-      get_byte 1
+      let x = get_byte 0 lsl 8 lor get_byte 1 in
+      if x >= 0x8000 then x - 0x10000 else x
 
     let read_i32 () = read_buf 4 >|= fun () ->
       let (lsl), (lor) = Int32.(shift_left, logor) in

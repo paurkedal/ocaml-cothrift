@@ -32,3 +32,13 @@ Document api
   XOCamlbuildPath: lib
   XOCamlbuildLibraries: cothrift
   DataFiles: COPYING ($docdir), COPYING.LESSER ($docdir)
+
+Executable testsuite
+  Install: false
+  Path: tests
+  MainIs: testsuite.ml
+  BuildDepends: cothrift.lwt, oUnit, lwt, lwt.unix
+
+Test "testsuite"
+  Type: Custom (0.4)
+  Command: $testsuite
