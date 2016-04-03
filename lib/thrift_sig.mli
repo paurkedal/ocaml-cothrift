@@ -100,7 +100,7 @@ module type Out_protocol = sig
   val close : unit -> unit io
 end
 
-module type Protocol = sig
+module type Protocol_functor = sig
   type 'a io
 
   module In :

@@ -27,5 +27,5 @@ module type Out_protocol = Thrift_sig.Out_protocol with type 'a io := 'a io
 type in_protocol = (module In_protocol)
 type out_protocol = (module Out_protocol)
 
-module type Protocol = Thrift_sig.Protocol with type 'a io := 'a io
+module type Protocol_functor = Thrift_sig.Protocol_functor with type 'a io := 'a io
 module type Processor = Thrift_sig.Processor

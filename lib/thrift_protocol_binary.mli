@@ -15,4 +15,4 @@
  *)
 
 module Make : functor (Io : Thrift_sig.Io) ->
-              Thrift_sig.Protocol with type 'a io := 'a Io.io
+              Thrift_sig.Protocol_functor with type 'a io := 'a Io.io

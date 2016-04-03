@@ -41,13 +41,13 @@ let random_int64 () =
 let random_float () =
   ldexp (Random.float 2.0 -. 1.0) (Random.int 20 - 10)
 
-module Make (Protocol : Thrift_sig.Protocol) = struct
+module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
 
   let ic, oc = Lwt_io.pipe ()
   module In_transport = (val Thrift_transport.of_input_channel ic)
   module Out_transport = (val Thrift_transport.of_output_channel oc)
-  module In = Protocol.In (In_transport)
-  module Out = Protocol.Out (Out_transport)
+  module In = Protocol_functor.In (In_transport)
+  module Out = Protocol_functor.Out (Out_transport)
 
   let test_scalars () =
     let n = 256 in

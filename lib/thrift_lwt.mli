@@ -25,4 +25,4 @@ module Thrift_transport : sig
     ?close: bool -> Lwt_io.output_channel -> (module Thrift_sig.Out_transport)
 end
 
-module Thrift_protocol_binary : Thrift_sig.Protocol
+module Thrift_protocol_binary : Thrift_sig.Protocol_functor
