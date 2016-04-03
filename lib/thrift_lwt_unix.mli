@@ -14,18 +14,13 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-type 'a io = 'a Lwt.t
+open Thrift_lwt
 
-module type Io = Thrift_sig.Io with type 'a io = 'a io
+module Thrift_server (Processor : Thrift_sig.Processor) : sig
+  val serve : ?timeout: int -> ?stop: unit Lwt.t -> ctx: Conduit_lwt_unix.ctx ->
+              Conduit_lwt_unix.server -> unit Lwt.t
+end
 
-module type In_transport = Thrift_sig.In_transport with type 'a io := 'a io
-module type Out_transport = Thrift_sig.Out_transport with type 'a io := 'a io
-
-module type In_protocol = Thrift_sig.In_protocol with type 'a io := 'a io
-module type Out_protocol = Thrift_sig.Out_protocol with type 'a io := 'a io
-
-type in_protocol = (module In_protocol)
-type out_protocol = (module Out_protocol)
-
-module type Protocol = Thrift_sig.Protocol with type 'a io := 'a io
-module type Processor = Thrift_sig.Processor
+val connect : ctx: Conduit_lwt_unix.ctx ->
+              Conduit_lwt_unix.client ->
+              (Thrift_sig.in_protocol * Thrift_sig.out_protocol)  Lwt.t

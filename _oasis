@@ -24,6 +24,14 @@ Library "cothrift-lwt"
     Thrift_lwt_sig
   BuildDepends: cothrift, lwt
 
+Library "cothrift-lwt-unix"
+  Path: lib
+  FindlibParent: cothrift
+  FindlibName: lwt-unix
+  Modules:
+    Thrift_lwt_unix
+  BuildDepends: cothrift.lwt, conduit.lwt-unix
+
 Document api
   Title: Cothrift API Reference
   Type: ocamlbuild (0.4)
