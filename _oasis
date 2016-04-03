@@ -1,0 +1,24 @@
+OASISFormat: 0.4
+Name: cothrift
+Version: 0.1
+Synopsis: OCaml runtime for the Apache Thrift RPC system
+Authors: Petter A. Urkedal
+License: LGPL-3 with OCaml linking exception
+AlphaFeatures: pure_interface
+Plugins: DevFiles (0.4), META (0.4)
+BuildTools: ocamlbuild
+
+Library "cothrift"
+  Path: lib
+  Modules:
+    Thrift,
+    Thrift_sig
+
+Document api
+  Title: Cothrift API Reference
+  Type: ocamlbuild (0.4)
+  InstallDir: $htmldir/html
+  BuildTools+: ocamldoc
+  XOCamlbuildPath: lib
+  XOCamlbuildLibraries: cothrift
+  DataFiles: COPYING ($docdir), COPYING.LESSER ($docdir)
