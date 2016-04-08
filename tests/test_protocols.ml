@@ -16,6 +16,7 @@
 
 open Lwt.Infix
 open Thrift_lwt
+open Thrift_lwt_unix
 
 module List = struct
   include List

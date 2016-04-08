@@ -45,7 +45,7 @@ Executable testsuite
   Install: false
   Path: tests
   MainIs: testsuite.ml
-  BuildDepends: cothrift.lwt, oUnit, lwt, lwt.unix
+  BuildDepends: cothrift.lwt-unix, oUnit
 
 Test "testsuite"
   Type: Custom (0.4)

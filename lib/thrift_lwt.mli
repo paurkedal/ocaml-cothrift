@@ -18,11 +18,4 @@ module Thrift_sig = Thrift_lwt_sig
 
 module Thrift_io : Thrift_sig.Io
 
-module Thrift_transport : sig
-  val of_input_channel :
-    ?close: bool -> Lwt_io.input_channel -> (module Thrift_sig.In_transport)
-  val of_output_channel :
-    ?close: bool -> Lwt_io.output_channel -> (module Thrift_sig.Out_transport)
-end
-
 module Thrift_protocol_binary : Thrift_sig.Protocol_functor

@@ -24,23 +24,4 @@ module Thrift_io = struct
   let fail = Lwt.fail
 end
 
-module Thrift_transport = struct
-
-  let of_input_channel ?(close = true) ic =
-    (module struct
-      let read_avail = Lwt_io.read_into ic
-      let read_exact = Lwt_io.read_into_exactly ic
-      let read_char () = Lwt_io.read_char ic
-      let close () = Lwt_io.close ic
-    end : Thrift_sig.In_transport)
-
-  let of_output_channel ?(close = true) oc =
-    (module struct
-      let write = Lwt_io.write_from_exactly oc
-      let flush () = Lwt_io.flush oc
-      let close () = Lwt_io.close oc
-    end : Thrift_sig.Out_transport)
-
-end
-
 module Thrift_protocol_binary = Thrift_protocol_binary.Make (Thrift_io)
