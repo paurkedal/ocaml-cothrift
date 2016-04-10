@@ -28,6 +28,11 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
   module Out_protocol = Thrift_protocol_binary.Out (Out_transport)
   module Sample = Sample.Make (Thrift_io) (In_protocol) (Out_protocol)
 
+  module Int32_set = Set.Make (Int32)
+  module Int32_set_set = Set.Make (Set.Make (Int32))
+  module Int16_set_map = Map.Make (Set.Make (Thrift.Int16))
+  module Int16_map = Map.Make (Thrift.Int16)
+
   let run () =
     let stuff_out = Sample.Stuff.{
       a_bool = true;
@@ -38,6 +43,10 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
       a_double = 11.0;
       a_string = "thirteen";
       an_i16_list = [17; 19; 21; 23];
+      an_i32_set = Int32_set.of_list [29l; 31l];
+      an_i32_set_set = Int32_set_set.of_list [Int32_set.singleton 37l];
+      map1 = Int16_set_map.empty;
+      map2 = Int16_map.empty;
     } in
     Lwt.async (fun () -> Sample.Stuff.write stuff_out);
     let%lwt stuff_in = Sample.Stuff.read () in

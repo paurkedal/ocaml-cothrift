@@ -25,6 +25,14 @@ module type Io = sig
   val fail : exn -> 'a io
 end
 
+module type Value_io = sig
+  type t
+  type 'a io
+  val tag : tag
+  val read : unit -> t io
+  val write : t -> unit io
+end
+
 module type In_transport = sig
   type 'a io
 

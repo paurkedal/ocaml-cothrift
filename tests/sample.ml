@@ -36,6 +36,11 @@ struct
       a_double : float [@thrift.id 6];
       a_string : string [@thrift.id 7] [@thrift.default ""];
       an_i16_list : int16 list [@thrift.id 8];
+      an_i32_set : Set.Make (Int32).t [@thrift.id 9];
+      an_i32_set_set : Set.Make (Set.Make (Int32)).t [@thrift.id 10];
+      map1 : bool Map.Make (Set.Make (Int16)).t [@thrift.id 11];
+      map2 : Set.Make (Bool).t Map.Make (Set.Make (Int16)).t Map.Make (Int16).t
+        [@thrift.id 12];
     } [@@deriving thrift]
   end
 end

@@ -17,6 +17,11 @@
 type int8 = int
 type int16 = int
 
+module Bool : Set.OrderedType with type t = bool
+module Int8 : Set.OrderedType with type t = int
+module Int16 : Set.OrderedType with type t = int
+module Float : Set.OrderedType with type t = float
+
 type transport_error =
   | Unknown
   | Not_open

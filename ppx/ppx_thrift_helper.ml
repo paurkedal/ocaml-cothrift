@@ -21,6 +21,11 @@ open Location
 open Longident
 open Parsetree
 
+type env = {
+  env_type_aliases : (string, type_declaration) Hashtbl.t;
+  env_defined_modules : (string, unit) Hashtbl.t;
+}
+
 let deriver = "thrift"
 
 let mangle_type_decl pfx = Ppx_deriving.mangle_type_decl (`Prefix pfx)
@@ -41,6 +46,20 @@ module Attr = struct
     attrs |> Ppx_deriving.attr ~deriver "default"
           |> Ppx_deriving.Arg.(get_attr ~deriver expr)
 end
+
+let rec collection_module_name = function
+  | Lident m -> m
+  | Lapply (Ldot (Lident f, "Make"), m) ->
+    f ^ "_of_" ^ collection_module_name m
+  | _ -> assert false
+
+let mangle_io_lid mthd = function
+  | Lident _ as lid -> mangle_lid mthd lid
+  | Ldot (m, "t") -> Ldot (Lident (collection_module_name m ^ "_io"), mthd)
+
+let rec manifest_lid = function
+  | Lident _ | Ldot _ as lid -> Mod.ident (mknoloc lid)
+  | Lapply (f, a) -> Mod.apply (manifest_lid f) (manifest_lid a)
 
 let tag_expr_of_constr_name = function
   | "unit"   -> Some ([%expr Tag_unit], 0)
@@ -71,7 +90,7 @@ let rec tag_expr_of_core_type ~env ptyp =
       | [ptyp] -> tag_expr_of_core_type ~env ptyp
       | _ -> raise_errorf ~loc:ptyp.ptyp_loc "option takes one parameter."
     else begin
-      try tag_expr_of_type_decl ~env (Hashtbl.find env name)
+      try tag_expr_of_type_decl ~env (Hashtbl.find env.env_type_aliases name)
       with Not_found ->
         match tag_expr_of_constr_name name with
         | Some (tag, r) ->
@@ -79,6 +98,12 @@ let rec tag_expr_of_core_type ~env ptyp =
             raise_errorf ~loc:ptyp.ptyp_loc "%s expects %d parameters." name r;
           tag
         | None -> not_inferable ()
+    end
+  | Ptyp_constr ({txt = Ldot (Lapply (fct, mdl), "t")}, ptyps) ->
+    begin match fct with
+    | Ldot (Lident "Set", "Make") -> [%expr Tag_set]
+    | Ldot (Lident "Map", "Make") -> [%expr Tag_map]
+    | _ -> not_inferable ()
     end
   | _ -> not_inferable ()
 

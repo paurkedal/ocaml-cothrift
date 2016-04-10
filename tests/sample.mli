@@ -33,6 +33,10 @@ sig
       a_double : float;
       a_string : string;
       an_i16_list : int16 list;
+      an_i32_set : Set.Make (Int32).t;
+      an_i32_set_set : Set.Make (Set.Make (Int32)).t;
+      map1 : bool Map.Make (Set.Make (Int16)).t;
+      map2 : Set.Make (Bool).t Map.Make (Set.Make (Int16)).t Map.Make (Int16).t;
     } [@@deriving thrift]
   end
 end

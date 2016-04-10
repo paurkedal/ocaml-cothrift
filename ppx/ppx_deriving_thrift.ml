@@ -21,6 +21,7 @@ open Location
 open Longident
 open Parsetree
 open Ppx_thrift_helper
+open Ppx_thrift_preapply
 open Ppx_thrift_read
 open Ppx_thrift_write
 
@@ -46,17 +47,26 @@ let str_of_type ~env ~options ~path type_decl =
 
 let type_decl_str ~env ~options ~path type_decls =
   List.iter
-    (fun type_decl -> Hashtbl.add env type_decl.ptype_name.txt type_decl)
+    (fun type_decl ->
+      Hashtbl.add env.env_type_aliases type_decl.ptype_name.txt type_decl)
     type_decls;
-  match List.concat (List.map partial_type_of_type_decl type_decls),
-        List.concat (List.map (str_of_type ~env ~options ~path) type_decls) with
-  | [], [] -> []
-  | [], vbs -> [Str.value Nonrecursive vbs]
-  | tds, [] -> [Str.type_ tds]
-  | tds, vbs -> [Str.type_ tds; Str.value Nonrecursive vbs]
+  let preapp_stris =
+    List.concat (List.map (preapplications_of_type_decl ~env) type_decls) in
+  let method_stris =
+    match List.concat (List.map partial_type_of_type_decl type_decls),
+          List.concat (List.map (str_of_type ~env ~options ~path) type_decls)
+    with
+    | [], [] -> []
+    | [], vbs -> [Str.value Nonrecursive vbs]
+    | tds, [] -> [Str.type_ tds]
+    | tds, vbs -> [Str.type_ tds; Str.value Nonrecursive vbs] in
+  preapp_stris @ method_stris
 
 let () =
-  let env = Hashtbl.create 31 in
+  let env = {
+    env_type_aliases = Hashtbl.create 31;
+    env_defined_modules = Hashtbl.create 32;
+  } in
   Ppx_deriving.register @@
   Ppx_deriving.create deriver
     ~type_decl_sig: (fun ~options ~path type_decls ->

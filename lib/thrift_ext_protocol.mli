@@ -25,4 +25,32 @@ sig
 
   val read_list : tag -> (unit -> 'a io) -> unit -> 'a list io
   val write_list : tag -> ('a -> unit io) -> 'a list -> unit io
+
+  module Bool_io :
+    Thrift_sig.Value_io with type t = bool and type 'a io := 'a io
+  module Int8_io :
+    Thrift_sig.Value_io with type t = int8 and type 'a io := 'a io
+  module Int16_io :
+    Thrift_sig.Value_io with type t = int16 and type 'a io := 'a io
+  module Int32_io :
+    Thrift_sig.Value_io with type t = int32 and type 'a io := 'a io
+  module Int64_io :
+    Thrift_sig.Value_io with type t = int64 and type 'a io := 'a io
+  module Float_io :
+    Thrift_sig.Value_io with type t = float and type 'a io := 'a io
+
+  module Set_io :
+    functor (Set : Set.S) ->
+    functor (Elt_io : Thrift_sig.Value_io
+              with type t = Set.elt and type 'a io := 'a io) ->
+    Thrift_sig.Value_io with type t = Set.t and type 'a io := 'a io
+
+  module Map_io :
+    functor (Map : Map.S) ->
+    functor (Key_io : Thrift_sig.Value_io
+              with type t = Map.key and type 'a io := 'a io) ->
+  sig
+    val read : tag -> (unit -> 'a io) -> unit -> 'a Map.t io
+    val write : tag -> ('a -> unit io) -> 'a Map.t -> unit io
+  end
 end

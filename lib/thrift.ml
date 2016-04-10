@@ -17,6 +17,12 @@
 type int8 = int
 type int16 = int
 
+module Bool = struct type t = bool let compare = compare end
+module Int_order = struct type t = int let compare = compare end
+module Int8 = Int_order
+module Int16 = Int_order
+module Float = struct type t = float let compare = compare end
+
 type transport_error =
   | Unknown
   | Not_open
