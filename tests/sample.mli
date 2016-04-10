@@ -14,13 +14,23 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open OUnit
+open Thrift
 
-let suite = "thrift" >::: [
-  "test_deriving" >:: Test_deriving.run;
-  "test_protocols" >:: Test_protocols.run;
-]
+module Make :
+  functor (Io : Thrift_sig.Io) ->
+  functor (Iprot : Thrift_sig.In_protocol with type 'a io := 'a Io.io) ->
+  functor (Oprot : Thrift_sig.Out_protocol with type 'a io := 'a Io.io) ->
+sig
+  open Io
 
-let _ =
-  Random.self_init ();
-  run_test_tt_main suite
+  type stuff = {
+    a_bool : bool;
+    a_byte : byte;
+    an_i16 : i16;
+    an_i32 : i32;
+    an_i64 : i64 option;
+    a_double : double;
+    a_string : string;
+    an_i16_list : i16 list;
+  } [@@deriving thrift]
+end

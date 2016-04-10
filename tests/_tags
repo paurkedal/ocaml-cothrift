@@ -1,1 +1,3 @@
 "test_protocols.ml": package(lwt.ppx)
+"test_deriving.ml": package(lwt.ppx)
+<sample.*>: package(ppx_deriving), ppx_deriving_thrift

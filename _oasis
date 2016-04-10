@@ -12,6 +12,7 @@ Library "cothrift"
   Path: lib
   Modules:
     Thrift,
+    Thrift_ext_protocol,
     Thrift_sig,
     Thrift_protocol_binary
 
@@ -32,6 +33,17 @@ Library "cothrift-lwt-unix"
     Thrift_lwt_unix
   BuildDepends: cothrift.lwt, conduit.lwt-unix
 
+Library ppx_deriving_thrift
+  FindlibParent: cothrift
+  FindlibName: ppx
+  Path: ppx
+  Modules:
+    Ppx_deriving_thrift,
+    Ppx_thrift_helper,
+    Ppx_thrift_read,
+    Ppx_thrift_write
+  BuildDepends: ppx_deriving.api
+
 Document api
   Title: Cothrift API Reference
   Type: ocamlbuild (0.4)
@@ -45,7 +57,7 @@ Executable testsuite
   Install: false
   Path: tests
   MainIs: testsuite.ml
-  BuildDepends: cothrift.lwt-unix, oUnit
+  BuildDepends: cothrift.lwt-unix, ppx_deriving.api, oUnit
 
 Test "testsuite"
   Type: Custom (0.4)

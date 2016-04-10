@@ -11,6 +11,12 @@ let () = dispatch begin function
   | After_rules as e ->
     flag ["doc"; "ocaml"; "extension:html"] &
       S[A"-charset"; A"utf8"; A"-t"; A"OCaml runtime for the Apache Thrift RPC system"];
+
+    dep ["ocaml"; "compile"; "ppx_deriving_thrift"]
+      ["ppx/ppx_deriving_thrift.cma"];
+    flag ["ocaml"; "compile"; "ppx_deriving_thrift"] &
+      S[A"-ppxopt"; A"ppx_deriving,ppx/ppx_deriving_thrift.cma"];
+
     dispatch_default e
 
   | e ->
