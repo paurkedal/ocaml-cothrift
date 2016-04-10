@@ -26,14 +26,16 @@ struct
   open Oprot
   include Thrift_ext_protocol.Make (Io) (Iprot) (Oprot)
 
-  type stuff = {
-    a_bool : bool [@thrift.id 1] [@thrift.default false];
-    a_byte : byte [@thrift.id 2] [@thrift.default -1];
-    an_i16 : i16 [@thrift.id 3];
-    an_i32 : i32 [@thrift.id 4];
-    an_i64 : i64 option [@thrift.id 5];
-    a_double : double [@thrift.id 6];
-    a_string : string [@thrift.id 7] [@thrift.default ""];
-    an_i16_list : i16 list [@thrift.id 8];
-  } [@@deriving thrift]
+  module Stuff = struct
+    type t = {
+      a_bool : bool [@thrift.id 1] [@thrift.default false];
+      a_byte : int8 [@thrift.id 2] [@thrift.default -1];
+      an_i16 : int16 [@thrift.id 3];
+      an_i32 : int32 [@thrift.id 4];
+      an_i64 : int64 option [@thrift.id 5];
+      a_double : float [@thrift.id 6];
+      a_string : string [@thrift.id 7] [@thrift.default ""];
+      an_i16_list : int16 list [@thrift.id 8];
+    } [@@deriving thrift]
+  end
 end

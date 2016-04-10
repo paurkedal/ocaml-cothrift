@@ -14,11 +14,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-type byte = int
-type i16 = int
-type i32 = int32
-type i64 = int64
-type double = float
+type int8 = int
+type int16 = int
 
 type transport_error =
   | Unknown

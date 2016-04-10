@@ -58,11 +58,11 @@ module type In_protocol = sig
   val read_set_begin : unit -> (tag * int) io
   val read_set_end : unit -> unit io
   val read_bool : unit -> bool io
-  val read_byte : unit -> int io
-  val read_i16 : unit -> int io
-  val read_i32 : unit -> Int32.t io
-  val read_i64 : unit -> Int64.t io
-  val read_double : unit -> float io
+  val read_int8 : unit -> int io
+  val read_int16 : unit -> int io
+  val read_int32 : unit -> Int32.t io
+  val read_int64 : unit -> Int64.t io
+  val read_float : unit -> float io
   val read_string : unit -> string io
   val read_binary : unit -> string io
   val read_binary_bytes : unit -> Bytes.t io
@@ -87,11 +87,11 @@ module type Out_protocol = sig
   val write_set_begin : tag -> int -> unit io
   val write_set_end : unit -> unit io
   val write_bool : bool -> unit io
-  val write_byte : int -> unit io
-  val write_i16 : int -> unit io
-  val write_i32 : Int32.t -> unit io
-  val write_i64 : Int64.t -> unit io
-  val write_double : float -> unit io
+  val write_int8 : int -> unit io
+  val write_int16 : int -> unit io
+  val write_int32 : Int32.t -> unit io
+  val write_int64 : Int64.t -> unit io
+  val write_float : float -> unit io
   val write_string : string -> unit io
   val write_binary : string -> unit io
   val write_binary_bytes : Bytes.t -> int -> int -> unit io

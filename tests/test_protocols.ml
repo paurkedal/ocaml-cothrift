@@ -52,19 +52,19 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
 
   let test_scalars () =
     let n = 256 in
-    let byte_values = List.sample (fun i -> i) 256 in
-    let i16_values = List.sample (fun i -> Random.int 0x10000 - 0x8000) n in
-    let i32_values = List.sample (fun i -> random_int32 ()) n in
-    let i64_values = List.sample (fun i -> random_int64 ()) n in
-    let double_values = List.sample (fun i -> random_float ()) n in
+    let int8_values = List.sample (fun i -> i) 256 in
+    let int16_values = List.sample (fun i -> Random.int 0x10000 - 0x8000) n in
+    let int32_values = List.sample (fun i -> random_int32 ()) n in
+    let int64_values = List.sample (fun i -> random_int64 ()) n in
+    let float_values = List.sample (fun i -> random_float ()) n in
     Lwt.async begin fun () ->
       Out.write_bool true >>
       Out.write_bool false >>
-      Lwt_list.iter_s Out.write_byte byte_values >>
-      Lwt_list.iter_s Out.write_i16 i16_values >>
-      Lwt_list.iter_s Out.write_i32 i32_values >>
-      Lwt_list.iter_s Out.write_i64 i64_values >>
-      Lwt_list.iter_s Out.write_double double_values
+      Lwt_list.iter_s Out.write_int8 int8_values >>
+      Lwt_list.iter_s Out.write_int16 int16_values >>
+      Lwt_list.iter_s Out.write_int32 int32_values >>
+      Lwt_list.iter_s Out.write_int64 int64_values >>
+      Lwt_list.iter_s Out.write_float float_values
     end;
     let%lwt btrue = In.read_bool () in
     let%lwt bfalse = In.read_bool () in
@@ -72,16 +72,16 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
       assert (btrue = true);
       assert (bfalse = false)
     end >>
-    Lwt_list.iter_s (fun x -> In.read_byte () >|= fun x' -> assert (x = x'))
-                    byte_values >>
-    Lwt_list.iter_s (fun x -> In.read_i16 () >|= fun x' -> assert (x = x'))
-                    i16_values >>
-    Lwt_list.iter_s (fun x -> In.read_i32 () >|= fun x' -> assert (x = x'))
-                    i32_values >>
-    Lwt_list.iter_s (fun x -> In.read_i64 () >|= fun x' -> assert (x = x'))
-                    i64_values >>
-    Lwt_list.iter_s (fun x -> In.read_double () >|= fun x' -> assert (x = x'))
-                    double_values
+    Lwt_list.iter_s (fun x -> In.read_int8 () >|= fun x' -> assert (x = x'))
+                    int8_values >>
+    Lwt_list.iter_s (fun x -> In.read_int16 () >|= fun x' -> assert (x = x'))
+                    int16_values >>
+    Lwt_list.iter_s (fun x -> In.read_int32 () >|= fun x' -> assert (x = x'))
+                    int32_values >>
+    Lwt_list.iter_s (fun x -> In.read_int64 () >|= fun x' -> assert (x = x'))
+                    int64_values >>
+    Lwt_list.iter_s (fun x -> In.read_float () >|= fun x' -> assert (x = x'))
+                    float_values
 
   let test_message message_type_in =
     Lwt.async begin fun () ->

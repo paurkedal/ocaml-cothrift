@@ -29,7 +29,7 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
   module Sample = Sample.Make (Thrift_io) (In_protocol) (Out_protocol)
 
   let run () =
-    let stuff_out = Sample.{
+    let stuff_out = Sample.Stuff.{
       a_bool = true;
       a_byte = 2;
       an_i16 = 3;
@@ -39,8 +39,8 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
       a_string = "thirteen";
       an_i16_list = [17; 19; 21; 23];
     } in
-    Lwt.async (fun () -> Sample.write_stuff stuff_out);
-    let%lwt stuff_in = Sample.read_stuff () in
+    Lwt.async (fun () -> Sample.Stuff.write stuff_out);
+    let%lwt stuff_in = Sample.Stuff.read () in
     let () = assert (stuff_in = stuff_out) in
     In_protocol.close () >> Out_protocol.close ()
 

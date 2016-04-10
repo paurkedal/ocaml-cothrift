@@ -23,14 +23,16 @@ module Make :
 sig
   open Io
 
-  type stuff = {
-    a_bool : bool;
-    a_byte : byte;
-    an_i16 : i16;
-    an_i32 : i32;
-    an_i64 : i64 option;
-    a_double : double;
-    a_string : string;
-    an_i16_list : i16 list;
-  } [@@deriving thrift]
+  module Stuff : sig
+    type t = {
+      a_bool : bool;
+      a_byte : int8;
+      an_i16 : int16;
+      an_i32 : int32;
+      an_i64 : int64 option;
+      a_double : float;
+      a_string : string;
+      an_i16_list : int16 list;
+    } [@@deriving thrift]
+  end
 end
