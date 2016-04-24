@@ -39,4 +39,11 @@ sig
       map2 : Set.Make (Bool).t Map.Make (Set.Make (Int16)).t Map.Make (Int16).t;
     } [@@deriving thrift]
   end
+
+  module Union : sig
+    type t =
+      | One of int32
+      | Many of int32 list
+      [@@deriving thrift]
+  end
 end

@@ -50,7 +50,13 @@ module Make (Protocol_functor : Thrift_sig.Protocol_functor) = struct
     } in
     Lwt.async (fun () -> Sample.Stuff.write stuff_out);
     let%lwt stuff_in = Sample.Stuff.read () in
-    let () = assert (stuff_in = stuff_out) in
+    assert (stuff_in = stuff_out);
+
+    let union_out = Sample.Union.Many [97l; 101l] in
+    Lwt.async (fun () -> Sample.Union.write union_out);
+    let%lwt union_in = Sample.Union.read () in
+    assert (union_in = union_out);
+
     In_protocol.close () >> Out_protocol.close ()
 
 end

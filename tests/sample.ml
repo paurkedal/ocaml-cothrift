@@ -14,6 +14,7 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Printf
 open Thrift
 
 module Make =
@@ -42,5 +43,12 @@ struct
       map2 : Set.Make (Bool).t Map.Make (Set.Make (Int16)).t Map.Make (Int16).t
         [@thrift.id 12];
     } [@@deriving thrift]
+  end
+
+  module Union = struct
+    type t =
+      | One of int32 [@thrift.id 2]
+      | Many of int32 list [@thrift.id 3]
+      [@@deriving thrift]
   end
 end

@@ -138,6 +138,43 @@ let reader_expr_of_type_decl ~env type_decl =
         | Some (_, field_type, field_id) ->
           [%e Exp.match_ [%expr field_id] field_id_cases] in
       _loop ()]
+  | Ptype_variant pcds, _ ->
+    let mk_field_case pcd =
+      let field_type =
+        match pcd.pcd_args with
+        | [t] -> t
+        | _ -> raise_errorf ~loc:pcd.pcd_loc
+                "Constructors for thrift unions takes a single argument." in
+      let reader = reader_expr_of_core_type ~env field_type in
+      let c = mkloc (Lident pcd.pcd_name.txt) pcd.pcd_name.loc in
+      let field_id = Attr.id ~loc:pcd.pcd_loc pcd.pcd_attributes in
+      Exp.case (Pat.constant (Const_int field_id))
+               [%expr [%e reader] () >|= fun r ->
+                      [%e Exp.construct c (Some [%expr r])]] in
+    let default_case =
+      let fmt_str = sprintf "Union %s, field %%d not implemented."
+                            type_decl.ptype_name.txt in
+      let fmt_expr = Exp.constant (Const_string (fmt_str, None)) in
+      Exp.case (Pat.var (mknoloc "field_id"))
+        [%expr fail (Protocol_error
+                      (Not_implemented, sprintf [%e fmt_expr] field_id))] in
+    let field_id_cases =
+      List.rev (default_case :: List.rev_map mk_field_case pcds) in
+    let struct_name = type_decl.ptype_name.txt in
+    let struct_name_expr = Exp.constant (Const_string (struct_name, None)) in
+    let msg = sprintf "Received wrong name for struct %s." struct_name in
+    let msg_expr = Exp.constant (Const_string (msg, None)) in
+    [%expr
+      fun () ->
+      read_struct_begin () >>= fun name ->
+      if name <> "" && name <> [%e struct_name_expr] then
+        fail (Protocol_error (Invalid_data, [%e msg_expr])) else
+      read_field_begin () >>= function
+      | None ->
+        fail (Protocol_error (Invalid_data, "Missing union field."))
+      | Some (field_name, field_tag, field_id) ->
+        [%e Exp.match_ [%expr field_id] field_id_cases]
+    ]
   | _ ->
     raise_errorf ~loc:type_decl.ptype_loc
                  "Cannot derive thrift methods for this kind of type."

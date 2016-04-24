@@ -70,6 +70,7 @@ let writer_expr_of_field ~env get_field pld cont =
     ]
 
 let writer_expr_of_type_decl ~env type_decl =
+  let name = type_decl.ptype_name in
   match type_decl.ptype_kind, type_decl.ptype_manifest with
   | Ptype_abstract, Some ptyp ->
     writer_expr_of_core_type ~env ptyp
@@ -78,13 +79,39 @@ let writer_expr_of_type_decl ~env type_decl =
     let cont =
       List.fold_right (writer_expr_of_field ~env get_field) fields
         [%expr write_field_stop () >>= fun () -> write_struct_end ()] in
-    let name = type_decl.ptype_name in
     let name_expr = Exp.constant (Const_string (name.txt, None)) in
     let lid = mkloc (Lident name.txt) name.loc in
     [%expr
       fun (_r : [%t Typ.constr lid []]) ->
       write_struct_begin [%e name_expr] >>= fun () -> [%e cont]
     ]
+  | Ptype_variant pcds, _ ->
+    let mk_case pcd =
+      let field_type =
+        match pcd.pcd_args with
+        | [t] -> t
+        | _ -> raise_errorf ~loc:pcd.pcd_loc
+                "Constructors for thrift unions takes a single argument." in
+      let c = mkloc (Lident pcd.pcd_name.txt) pcd.pcd_name.loc in
+      let field_tag = tag_expr_of_core_type ~env field_type in
+      let field_id = Attr.id ~loc:pcd.pcd_loc pcd.pcd_attributes in
+      Exp.case (Pat.construct c (Some [%pat? _x]))
+        [%expr
+          write_field_begin
+            [%e Exp.constant (Const_string (pcd.pcd_name.txt, None))]
+            [%e field_tag]
+            [%e Exp.constant (Const_int field_id)] >>=
+              fun () ->
+          [%e writer_expr_of_core_type ~env field_type] _x
+        ] in
+    let name_expr = Exp.constant (Const_string (name.txt, None)) in
+    [%expr
+      fun (_v : [%t Typ.constr (mkloc (Lident name.txt) name.loc) []]) ->
+      write_struct_begin [%e name_expr] >>= fun () ->
+      [%e Exp.match_ [%expr _v] (List.map mk_case pcds)] >>= fun () ->
+      write_field_end () >>= fun () ->
+      write_field_stop () >>= fun () ->
+      write_struct_end ()]
   | _ ->
     raise_errorf ~loc:type_decl.ptype_loc
                  "Cannot derive thrift methods for this kind of type."
