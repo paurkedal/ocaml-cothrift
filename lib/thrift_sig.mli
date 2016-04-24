@@ -23,6 +23,17 @@ module type Io = sig
   val (>|=) : 'a io -> ('a -> 'b) -> 'b io
   val return : 'a -> 'a io
   val fail : exn -> 'a io
+
+  type 'a wakener
+  val wait : unit -> 'a io * 'a wakener
+  val wakeup : 'a wakener -> 'a -> unit
+
+  module Condition : sig
+    type 'a t
+    val create : unit -> 'a t
+    val wait : 'a t -> 'a io
+    val signal : 'a t -> 'a -> unit
+  end
 end
 
 module type Value_io = sig

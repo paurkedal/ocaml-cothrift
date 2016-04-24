@@ -22,6 +22,17 @@ module Thrift_io = struct
   let (>|=) = Lwt.(>|=)
   let return = Lwt.return
   let fail = Lwt.fail
+
+  type 'a wakener = 'a Lwt.u
+  let wait = Lwt.wait
+  let wakeup = Lwt.wakeup
+
+  module Condition = struct
+    type 'a t = 'a Lwt_condition.t
+    let create = Lwt_condition.create
+    let wait cond = Lwt_condition.wait cond
+    let signal = Lwt_condition.signal
+  end
 end
 
 module Thrift_protocol_binary = Thrift_protocol_binary.Make (Thrift_io)

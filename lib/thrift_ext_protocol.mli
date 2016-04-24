@@ -53,4 +53,6 @@ sig
     val read : tag -> (unit -> 'a io) -> unit -> 'a Map.t io
     val write : tag -> ('a -> unit io) -> 'a Map.t -> unit io
   end
+
+  val call : string -> (unit -> unit io) -> (bool -> 'a io) -> 'a io
 end

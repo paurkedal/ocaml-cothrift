@@ -25,6 +25,8 @@ struct
   open Iprot
   open Oprot
 
+  (* Types *)
+
   let read_list tag read_elt () =
     read_list_begin () >>= fun (tag', n) ->
     if tag <> tag' then
@@ -135,4 +137,67 @@ struct
         (write_map_begin Key_io.tag value_tag (Map.cardinal map)) >>=
       write_map_end
   end
+
+  (* Services *)
+
+  type slot =
+    | Slot_free
+    | Slot : (bool -> 'a io) * 'a wakener -> slot
+
+  let slots = Array.make 192 Slot_free
+  let alloc_cond = Condition.create ()
+  let pending_count = ref 0
+  let pending_cond = Condition.create ()
+  let next_slot = ref 0
+
+  let alloc_slot read_result =
+    let sleeper, wakener = wait () in
+    let rec free_slot i =
+      if slots.(i) = Slot_free then i else free_slot (i + 1) in
+    let rec wait_for_slot () =
+      if 3 * !pending_count < 2 * Array.length slots then return () else
+      Condition.wait alloc_cond >>= wait_for_slot in
+    wait_for_slot () >>= fun () ->
+    let i = free_slot !next_slot in
+    incr pending_count;
+    slots.(i) <- Slot (read_result, wakener);
+    next_slot := (i + 1) mod Array.length slots;
+    return (i, sleeper)
+
+  let release_slot i =
+    slots.(i) <- Slot_free;
+    Condition.signal alloc_cond ();
+    decr pending_count
+
+  let process_next_result () =
+    read_message_begin () >>= fun (msg_name, msg_type, msg_id) ->
+    match msg_type with
+    | Call | Oneway ->
+      fail (Protocol_error (Invalid_data, "Server sent a call."))
+    | Reply | Exception ->
+      let i = Int32.to_int msg_id in
+      if i < 0 || i >= Array.length slots then
+        fail (Protocol_error (Invalid_data, "Message ID out of range.")) else
+      begin match slots.(i) with
+      | Slot_free ->
+        fail (Protocol_error (Invalid_data, "Unexpected message ID."))
+      | Slot (read_result, wakener) ->
+        release_slot i;
+        read_result (msg_type = Exception) >>= fun r ->
+        read_message_end () >|= fun () ->
+        wakeup wakener r
+      end
+
+  let rec process_results () =
+    (if !pending_count = 0
+      then Condition.wait pending_cond
+      else process_next_result ())
+    >>= process_results
+
+  let call name write_args read_result =
+    alloc_slot read_result >>= fun (msg_id, sleeper) ->
+    write_message_begin name Call (Int32.of_int msg_id) >>= fun () ->
+    write_args () >>= fun () ->
+    write_message_end () >>= fun () ->
+    sleeper
 end
