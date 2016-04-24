@@ -41,40 +41,42 @@ let rec writer_expr_of_core_type ~env ptyp =
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot derive thrift writer for %s."
                  (Ppx_deriving.string_of_core_type ptyp)
 
+let writer_expr_of_field ~env get_field pld cont =
+  let field_id = Attr.id ~loc:pld.pld_loc pld.pld_attributes in
+  let field_name = mkloc (Lident pld.pld_name.txt) pld.pld_name.loc in
+  let field_tag = tag_expr_of_core_type ~env pld.pld_type in
+  let writefield _x =
+    [%expr
+      write_field_begin
+        [%e Exp.constant (Const_string (pld.pld_name.txt, None))]
+        [%e field_tag]
+        [%e Exp.constant (Const_int field_id)] >>= fun () ->
+      [%e writer_expr_of_core_type ~env (strip_option pld.pld_type)]
+        [%e _x] >>= fun () ->
+      write_field_end ()
+    ] in
+  if is_option pld.pld_type then
+    [%expr
+      begin match [%e get_field field_name] with
+      | None -> return ()
+      | Some _x -> [%e writefield [%expr _x]]
+      end >>= fun () ->
+      [%e cont]
+    ]
+  else
+    [%expr
+      [%e writefield (get_field field_name)] >>= fun () ->
+      [%e cont]
+    ]
+
 let writer_expr_of_type_decl ~env type_decl =
   match type_decl.ptype_kind, type_decl.ptype_manifest with
   | Ptype_abstract, Some ptyp ->
     writer_expr_of_core_type ~env ptyp
   | Ptype_record fields, _ ->
-    let mk_writefield pld cont =
-      let field_id = Attr.id ~loc:pld.pld_loc pld.pld_attributes in
-      let field_name = mkloc (Lident pld.pld_name.txt) pld.pld_name.loc in
-      let field_tag = tag_expr_of_core_type ~env pld.pld_type in
-      let writefield _x =
-        [%expr
-          write_field_begin
-            [%e Exp.constant (Const_string (pld.pld_name.txt, None))]
-            [%e field_tag]
-            [%e Exp.constant (Const_int field_id)] >>= fun () ->
-          [%e writer_expr_of_core_type ~env (strip_option pld.pld_type)]
-            [%e _x] >>= fun () ->
-          write_field_end ()
-        ] in
-      if is_option pld.pld_type then
-        [%expr
-          begin match [%e Exp.field [%expr _r] field_name] with
-          | None -> return ()
-          | Some _x -> [%e writefield [%expr _x]]
-          end >>= fun () ->
-          [%e cont]
-        ]
-      else
-        [%expr
-          [%e writefield (Exp.field [%expr _r] field_name)] >>= fun () ->
-          [%e cont]
-        ] in
+    let get_field field_name = Exp.field [%expr _r] field_name in
     let cont =
-      List.fold_right mk_writefield fields
+      List.fold_right (writer_expr_of_field ~env get_field) fields
         [%expr write_field_stop () >>= fun () -> write_struct_end ()] in
     let name = type_decl.ptype_name in
     let name_expr = Exp.constant (Const_string (name.txt, None)) in
