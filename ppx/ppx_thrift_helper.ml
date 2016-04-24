@@ -34,6 +34,16 @@ let mangle_lid pfx = Ppx_deriving.mangle_lid (`Prefix pfx)
 let parse_options = List.iter @@ fun (name, pexp) ->
   raise_errorf ~loc:pexp.pexp_loc "The thrift deriver takes no option %s." name
 
+module ExpC = struct
+  let int ?loc ?attrs x = Exp.constant ?loc ?attrs (Const_int x)
+  let string ?loc ?attrs x = Exp.constant ?loc ?attrs (Const_string (x, None))
+end
+
+module PatC = struct
+  let int ?loc ?attrs x = Pat.constant ?loc ?attrs (Const_int x)
+  let string ?loc ?attrs x = Pat.constant ?loc ?attrs (Const_string (x, None))
+end
+
 module Attr = struct
 
   let id ~loc attrs =
@@ -47,6 +57,11 @@ module Attr = struct
           |> Ppx_deriving.Arg.(get_attr ~deriver expr)
 end
 
+let rec lid_is_simple = function
+  | Lident _ -> true
+  | Ldot (f, _) -> lid_is_simple f
+  | Lapply _ -> false
+
 let rec collection_module_name ?loc = function
   | Lident m -> m
   | Lapply (Ldot (Lident f, "Make"), m) ->
@@ -56,7 +71,9 @@ let rec collection_module_name ?loc = function
 
 let mangle_io_lid ?loc mthd = function
   | Lident _ as lid -> mangle_lid mthd lid
-  | Ldot (m, "t") -> Ldot (Lident (collection_module_name ?loc m ^ "_io"), mthd)
+  | Ldot (m, "t") ->
+    let cmn = collection_module_name ?loc m in
+    Ldot (Lident (if lid_is_simple m then cmn else cmn ^ "_io"), mthd)
   | Ldot (_, _) | Lapply (_, _) ->
     raise_errorf ?loc "Expecting a plain type name or t-component of a module."
 
@@ -64,25 +81,25 @@ let rec manifest_lid = function
   | Lident _ | Ldot _ as lid -> Mod.ident (mknoloc lid)
   | Lapply (f, a) -> Mod.apply (manifest_lid f) (manifest_lid a)
 
-let tag_expr_of_constr_name = function
-  | "unit"   -> Some ([%expr Tag_unit], 0)
-  | "bool"   -> Some ([%expr Tag_bool], 0)
-  | "int8"   -> Some ([%expr Tag_byte], 0)
-  | "int16"  -> Some ([%expr Tag_i16], 0)
-  | "int32"  -> Some ([%expr Tag_i32], 0)
-  | "uint64" -> Some ([%expr Tag_u64], 0)
-  | "int64"  -> Some ([%expr Tag_i64], 0)
-  | "float"  -> Some ([%expr Tag_double], 0)
-  | "string" -> Some ([%expr Tag_string], 0)
-  | "binary" -> Some ([%expr Tag_binary], 0)
-  | "map"    -> Some ([%expr Tag_map], 1)
-  | "set"    -> Some ([%expr Tag_set], 1)
-  | "list"   -> Some ([%expr Tag_list], 1)
-  | "utf8"   -> Some ([%expr Tag_utf8], 0)
-  | "utf16"  -> Some ([%expr Tag_utf16], 0)
+let tag_name_of_constr_name = function
+  | "unit"   -> Some ("Tag_unit", 0)
+  | "bool"   -> Some ("Tag_bool", 0)
+  | "int8"   -> Some ("Tag_byte", 0)
+  | "int16"  -> Some ("Tag_i16", 0)
+  | "int32"  -> Some ("Tag_i32", 0)
+  | "uint64" -> Some ("Tag_u64", 0)
+  | "int64"  -> Some ("Tag_i64", 0)
+  | "float"  -> Some ("Tag_double", 0)
+  | "string" -> Some ("Tag_string", 0)
+  | "binary" -> Some ("Tag_binary", 0)
+  | "map"    -> Some ("Tag_map", 1)
+  | "set"    -> Some ("Tag_set", 1)
+  | "list"   -> Some ("Tag_list", 1)
+  | "utf8"   -> Some ("Tag_utf8", 0)
+  | "utf16"  -> Some ("Tag_utf16", 0)
   | _ -> None
 
-let rec tag_expr_of_core_type ~env ptyp =
+let rec tag_name_of_core_type ~env ptyp =
   let not_inferable () =
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot infer thrift type tag for %s."
                  (Ppx_deriving.string_of_core_type ptyp) in
@@ -90,12 +107,12 @@ let rec tag_expr_of_core_type ~env ptyp =
   | Ptyp_constr ({txt = Lident name; loc}, ptyps) ->
     if name = "option" then
       match ptyps with
-      | [ptyp] -> tag_expr_of_core_type ~env ptyp
+      | [ptyp] -> tag_name_of_core_type ~env ptyp
       | _ -> raise_errorf ~loc:ptyp.ptyp_loc "option takes one parameter."
     else begin
-      try tag_expr_of_type_decl ~env (Hashtbl.find env.env_type_aliases name)
+      try tag_name_of_type_decl ~env (Hashtbl.find env.env_type_aliases name)
       with Not_found ->
-        match tag_expr_of_constr_name name with
+        match tag_name_of_constr_name name with
         | Some (tag, r) ->
           if r <> List.length ptyps then
             raise_errorf ~loc:ptyp.ptyp_loc "%s expects %d parameters." name r;
@@ -104,17 +121,27 @@ let rec tag_expr_of_core_type ~env ptyp =
     end
   | Ptyp_constr ({txt = Ldot (Lapply (fct, mdl), "t")}, ptyps) ->
     begin match fct with
-    | Ldot (Lident "Set", "Make") -> [%expr Tag_set]
-    | Ldot (Lident "Map", "Make") -> [%expr Tag_map]
+    | Ldot (Lident "Set", "Make") -> "Tag_set"
+    | Ldot (Lident "Map", "Make") -> "Tag_map"
     | _ -> not_inferable ()
     end
   | _ -> not_inferable ()
 
-and tag_expr_of_type_decl ~env type_decl =
+and tag_name_of_type_decl ~env type_decl =
   match type_decl.ptype_kind, type_decl.ptype_manifest with
-  | Ptype_abstract, Some ptyp -> tag_expr_of_core_type ~env ptyp
-  | Ptype_record _, _ -> [%expr Tag_struct]
+  | Ptype_abstract, Some ptyp -> tag_name_of_core_type ~env ptyp
+  | Ptype_record _, _ -> "Tag_struct"
   | _ -> assert false
+
+let tag_expr_of_core_type ~env ptyp =
+  let loc = ptyp.ptyp_loc in
+  let tag = tag_name_of_core_type ~env ptyp in
+  Exp.construct ~loc (mkloc (Lident tag) loc) None
+
+let tag_pat_of_core_type ~env ptyp =
+  let loc = ptyp.ptyp_loc in
+  let tag = tag_name_of_core_type ~env ptyp in
+  Pat.construct ~loc (mkloc (Lident tag) loc) None
 
 let is_option ptyp =
   match ptyp.ptyp_desc with

@@ -14,8 +14,9 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Ast_helper
 open Ast_convenience
+open Ast_helper
+open Ast_mapper
 open Asttypes
 open Location
 open Longident
@@ -24,6 +25,7 @@ open Ppx_thrift_helper
 open Ppx_thrift_preapply
 open Ppx_thrift_read
 open Ppx_thrift_write
+open Ppx_thrift_client
 
 let sig_of_type ~options ~path type_decl =
   let () = parse_options options in
@@ -62,13 +64,21 @@ let type_decl_str ~env ~options ~path type_decls =
     | tds, vbs -> [Str.type_ tds; Str.value Nonrecursive vbs] in
   preapp_stris @ method_stris
 
+let module_type_decl_sig ~env ~options ~path mtd =
+  [client_sig_of_module_type ~env mtd]
+
+let module_type_decl_str ~env ~options ~path mtd =
+  [client_str_of_module_type ~env mtd]
+
 let () =
   let env = {
     env_type_aliases = Hashtbl.create 31;
     env_defined_modules = Hashtbl.create 32;
   } in
   Ppx_deriving.register @@
-  Ppx_deriving.create deriver
-    ~type_decl_sig: (fun ~options ~path type_decls ->
-      List.concat (List.map (sig_of_type ~options ~path) type_decls))
-    ~type_decl_str: (type_decl_str ~env) ()
+    Ppx_deriving.create deriver
+      ~type_decl_sig: (fun ~options ~path type_decls ->
+        List.concat (List.map (sig_of_type ~options ~path) type_decls))
+      ~type_decl_str: (type_decl_str ~env)
+      ~module_type_decl_sig: (module_type_decl_sig ~env)
+      ~module_type_decl_str: (module_type_decl_str ~env) ()

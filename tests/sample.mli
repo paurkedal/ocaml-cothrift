@@ -46,4 +46,20 @@ sig
       | Many of int32 list
       [@@deriving thrift]
   end
+
+  module Unix_error : sig
+    type t = {errno : int32 [@thrift.id 1];} [@@deriving thrift]
+  end
+
+  module Simple_error : sig
+    type t = {message : string [@thrift.id 1];} [@@deriving thrift]
+  end
+
+  module type Arpeecee = sig
+    val sum : elements: (Set.Make (Int32).t [@thrift.id 1]) -> unit ->
+          [ `Ok of int32
+          | `Unix_error of Unix_error.t [@thrift.id 1]
+          | `Simple_error of Simple_error.t [@thrift.id 2]] io
+  end [@@deriving thrift]
+
 end

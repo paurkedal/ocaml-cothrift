@@ -53,7 +53,8 @@ let partial_type_of_type_decl type_decl =
                     type_decl.ptype_name.loc)]
   | _ -> []
 
-let rec reader_expr_of_core_type ~env ptyp =
+let rec reader_expr_of_core_type ~env ?union_name ptyp =
+  let loc = ptyp.ptyp_loc in
   match ptyp.ptyp_desc with
   | Ptyp_constr ({txt = lid; loc}, ptyps) ->
     let f = Exp.ident (mkloc (mangle_io_lid ~loc "read" lid) loc) in
@@ -62,6 +63,48 @@ let rec reader_expr_of_core_type ~env ptyp =
       let r = reader_expr_of_core_type ~env ptyp in
       [tag; r] in
     app f (List.flatten (List.map tagged_reader ptyps))
+  | Ptyp_variant (rows, Closed, None) ->
+    let union_name =
+      match union_name with
+      | None -> raise_errorf ~loc "Cannot create reader for anonymous variant."
+      | Some name -> name in
+    let mk_field_case = function
+      | Rtag ("Ok", [], _, [arg_type]) ->
+        let reader = reader_expr_of_core_type ~env arg_type in
+        Exp.case (PatC.int ~loc 0) [%expr [%e reader] () >|= fun _x -> `Ok _x]
+      | Rtag (row_label, row_attributes, _, [arg_type]) ->
+        let field_id = Attr.id ~loc row_attributes in
+        let reader = reader_expr_of_core_type ~env arg_type in
+        Exp.case (PatC.int ~loc field_id)
+          [%expr [%e reader] () >|= fun _x ->
+                 [%e Exp.variant row_label (Some [%expr _x])]]
+      | Rtag (_, _, _, _) ->
+        raise_errorf ~loc "Can only derive thrift union serializers for \
+                           single-argument constructors."
+      | Rinherit t ->
+        raise_errorf ~loc "Only expanded variant types supported." in
+    let default_case =
+      let fmt_str = sprintf "Union %s, field %%d not implemented."
+                            union_name in
+      let fmt_expr = Exp.constant (Const_string (fmt_str, None)) in
+      Exp.case (Pat.var (mknoloc "field_id"))
+        [%expr fail (Protocol_error
+                      (Not_implemented, sprintf [%e fmt_expr] field_id))] in
+    let field_id_cases =
+      List.rev (default_case :: List.rev_map mk_field_case rows) in
+    let msg = sprintf "Received wrong name for union %s." union_name in
+    let msg_expr = Exp.constant (Const_string (msg, None)) in
+    [%expr
+      fun () ->
+      read_struct_begin () >>= fun name ->
+      if name <> "" && name <> [%e ExpC.string union_name] then
+        fail (Protocol_error (Invalid_data, [%e msg_expr])) else
+      read_field_begin () >>= function
+      | None ->
+        fail (Protocol_error (Invalid_data, "Missing union field."))
+      | Some (field_name, field_tag, field_id) ->
+        [%e Exp.match_ [%expr field_id] field_id_cases]
+    ]
   | _ ->
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot derive thrift for %s."
                  (Ppx_deriving.string_of_core_type ptyp)
