@@ -1,7 +1,7 @@
 (* OASIS_START *)
 (* OASIS_STOP *)
 
-let () = mark_tag_used "tests"
+let () = List.iter mark_tag_used ["tests"; "pkg_conduit.lwt-unix"]
 
 let () = dispatch begin function
 
