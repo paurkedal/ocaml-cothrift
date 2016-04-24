@@ -56,7 +56,7 @@ let partial_type_of_type_decl type_decl =
 let rec reader_expr_of_core_type ~env ptyp =
   match ptyp.ptyp_desc with
   | Ptyp_constr ({txt = lid; loc}, ptyps) ->
-    let f = Exp.ident (mkloc (mangle_io_lid "read" lid) loc) in
+    let f = Exp.ident (mkloc (mangle_io_lid ~loc "read" lid) loc) in
     let tagged_reader ptyp =
       let tag = tag_expr_of_core_type ~env ptyp in
       let r = reader_expr_of_core_type ~env ptyp in

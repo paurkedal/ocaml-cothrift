@@ -47,15 +47,18 @@ module Attr = struct
           |> Ppx_deriving.Arg.(get_attr ~deriver expr)
 end
 
-let rec collection_module_name = function
+let rec collection_module_name ?loc = function
   | Lident m -> m
   | Lapply (Ldot (Lident f, "Make"), m) ->
     f ^ "_of_" ^ collection_module_name m
-  | _ -> assert false
+  | _ ->
+    raise_errorf ?loc "Unrecognized collection functor application."
 
-let mangle_io_lid mthd = function
+let mangle_io_lid ?loc mthd = function
   | Lident _ as lid -> mangle_lid mthd lid
-  | Ldot (m, "t") -> Ldot (Lident (collection_module_name m ^ "_io"), mthd)
+  | Ldot (m, "t") -> Ldot (Lident (collection_module_name ?loc m ^ "_io"), mthd)
+  | Ldot (_, _) | Lapply (_, _) ->
+    raise_errorf ?loc "Expecting a plain type name or t-component of a module."
 
 let rec manifest_lid = function
   | Lident _ | Ldot _ as lid -> Mod.ident (mknoloc lid)
