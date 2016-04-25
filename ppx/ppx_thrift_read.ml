@@ -84,26 +84,19 @@ let rec reader_expr_of_core_type ~env ?union_name ptyp =
       | Rinherit t ->
         raise_errorf ~loc "Only expanded variant types supported." in
     let default_case =
-      let fmt_str = sprintf "Union %s, field %%d not implemented."
-                            union_name in
-      let fmt_expr = Exp.constant (Const_string (fmt_str, None)) in
+      let msg = sprintf "Union %s, field %%d not implemented." union_name in
       Exp.case (Pat.var (mknoloc "field_id"))
         [%expr fail (Protocol_error
-                      (Not_implemented, sprintf [%e fmt_expr] field_id))] in
+                (Not_implemented, sprintf [%e ExpC.string msg] field_id))] in
     let field_id_cases =
       List.rev (default_case :: List.rev_map mk_field_case rows) in
     let msg = sprintf "Received wrong name for union %s." union_name in
-    let msg_expr = Exp.constant (Const_string (msg, None)) in
-    [%expr
-      fun () ->
-      read_struct_begin () >>= fun name ->
-      if name <> "" && name <> [%e ExpC.string union_name] then
-        fail (Protocol_error (Invalid_data, [%e msg_expr])) else
-      read_field_begin () >>= function
-      | None ->
-        fail (Protocol_error (Invalid_data, "Missing union field."))
-      | Some (field_name, field_tag, field_id) ->
-        [%e Exp.match_ [%expr field_id] field_id_cases]
+    [%expr fun () ->
+      read_union
+        (fun name field_name field_tag field_id ->
+          if name <> "" && name <> [%e ExpC.string union_name] then
+            fail (Protocol_error (Invalid_data, [%e ExpC.string msg])) else
+          [%e Exp.match_ [%expr field_id] field_id_cases])
     ]
   | _ ->
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot derive thrift for %s."
@@ -124,15 +117,14 @@ let reader_expr_of_type_decl ~env type_decl =
       let field_id = Attr.id ~loc:pld.pld_loc pld.pld_attributes in
       let msg = sprintf "Received wrong field type for %s.%s"
                         type_decl.ptype_name.txt pld.pld_name.txt in
-      let msg_expr = Exp.constant (Const_string (msg, None)) in
       let reader_expr =
         reader_expr_of_core_type ~env (strip_option pld.pld_type) in
       let is_opt = Attr.default pld.pld_attributes = None in
       Exp.case
-        (Pat.constant (Const_int field_id))
+        (PatC.int field_id)
         [%expr
           if field_type <> [%e tag_expr_of_core_type ~env pld.pld_type] then
-            fail (Protocol_error (Invalid_data, [%e msg_expr]))
+            fail (Protocol_error (Invalid_data, [%e ExpC.string msg]))
           else begin
             [%e reader_expr] () >>= fun _x ->
             [%e Exp.setfield _r (partial_field_ident pld)
@@ -160,9 +152,7 @@ let reader_expr_of_type_decl ~env type_decl =
       let name = mkloc (Lident pld.pld_name.txt) pld.pld_name.loc in
       (name, Exp.ident name) in
     let struct_name = type_decl.ptype_name.txt in
-    let struct_name_expr = Exp.constant (Const_string (struct_name, None)) in
     let msg = sprintf "Received wrong name for struct %s." struct_name in
-    let msg_expr = Exp.constant (Const_string (msg, None)) in
     let ret_expr =
       List.fold_right mk_retcheck fields
         [%expr return [%e (Exp.record (List.map mk_retfield fields) None)]] in
@@ -172,8 +162,8 @@ let reader_expr_of_type_decl ~env type_decl =
     [%expr
       fun () ->
       read_struct_begin () >>= fun name ->
-      if name <> "" && name <> [%e struct_name_expr] then
-        fail (Protocol_error (Invalid_data, [%e msg_expr])) else
+      if name <> "" && name <> [%e ExpC.string struct_name] then
+        fail (Protocol_error (Invalid_data, [%e ExpC.string msg])) else
       let _r = [%e Exp.record (List.map mk_field fields) None] in
       let rec _loop () =
         read_field_begin () >>= function
@@ -191,32 +181,25 @@ let reader_expr_of_type_decl ~env type_decl =
       let reader = reader_expr_of_core_type ~env field_type in
       let c = mkloc (Lident pcd.pcd_name.txt) pcd.pcd_name.loc in
       let field_id = Attr.id ~loc:pcd.pcd_loc pcd.pcd_attributes in
-      Exp.case (Pat.constant (Const_int field_id))
+      Exp.case (PatC.int field_id)
                [%expr [%e reader] () >|= fun r ->
                       [%e Exp.construct c (Some [%expr r])]] in
     let default_case =
-      let fmt_str = sprintf "Union %s, field %%d not implemented."
-                            type_decl.ptype_name.txt in
-      let fmt_expr = Exp.constant (Const_string (fmt_str, None)) in
+      let msg = sprintf "Union %s, field %%d not implemented."
+                        type_decl.ptype_name.txt in
       Exp.case (Pat.var (mknoloc "field_id"))
-        [%expr fail (Protocol_error
-                      (Not_implemented, sprintf [%e fmt_expr] field_id))] in
+        [%expr fail (Protocol_error (Not_implemented,
+                                     sprintf [%e ExpC.string msg] field_id))] in
     let field_id_cases =
       List.rev (default_case :: List.rev_map mk_field_case pcds) in
-    let struct_name = type_decl.ptype_name.txt in
-    let struct_name_expr = Exp.constant (Const_string (struct_name, None)) in
-    let msg = sprintf "Received wrong name for struct %s." struct_name in
-    let msg_expr = Exp.constant (Const_string (msg, None)) in
-    [%expr
-      fun () ->
-      read_struct_begin () >>= fun name ->
-      if name <> "" && name <> [%e struct_name_expr] then
-        fail (Protocol_error (Invalid_data, [%e msg_expr])) else
-      read_field_begin () >>= function
-      | None ->
-        fail (Protocol_error (Invalid_data, "Missing union field."))
-      | Some (field_name, field_tag, field_id) ->
-        [%e Exp.match_ [%expr field_id] field_id_cases]
+    let union_name = type_decl.ptype_name.txt in
+    let msg = sprintf "Received wrong name for struct %s." union_name in
+    [%expr fun () ->
+      read_union
+        (fun name field_name field_tag field_id ->
+          if name <> "" && name <> [%e ExpC.string union_name] then
+            fail (Protocol_error (Invalid_data, [%e ExpC.string msg])) else
+          [%e Exp.match_ [%expr field_id] field_id_cases])
     ]
   | _ ->
     raise_errorf ~loc:type_decl.ptype_loc

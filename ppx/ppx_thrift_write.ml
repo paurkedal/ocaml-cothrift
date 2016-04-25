@@ -48,9 +48,9 @@ let writer_expr_of_field ~env get_field pld cont =
   let writefield _x =
     [%expr
       write_field_begin
-        [%e Exp.constant (Const_string (pld.pld_name.txt, None))]
+        [%e ExpC.string pld.pld_name.txt]
         [%e field_tag]
-        [%e Exp.constant (Const_int field_id)] >>= fun () ->
+        [%e ExpC.int field_id] >>= fun () ->
       [%e writer_expr_of_core_type ~env (strip_option pld.pld_type)]
         [%e _x] >>= fun () ->
       write_field_end ()
@@ -79,11 +79,10 @@ let writer_expr_of_type_decl ~env type_decl =
     let cont =
       List.fold_right (writer_expr_of_field ~env get_field) fields
         [%expr write_field_stop () >>= fun () -> write_struct_end ()] in
-    let name_expr = Exp.constant (Const_string (name.txt, None)) in
-    let lid = mkloc (Lident name.txt) name.loc in
+    let name_lid = mkloc (Lident name.txt) name.loc in
     [%expr
-      fun (_r : [%t Typ.constr lid []]) ->
-      write_struct_begin [%e name_expr] >>= fun () -> [%e cont]
+      fun (_r : [%t Typ.constr name_lid []]) ->
+      write_struct_begin [%e ExpC.string name.txt] >>= fun () -> [%e cont]
     ]
   | Ptype_variant pcds, _ ->
     let mk_case pcd =
@@ -97,21 +96,14 @@ let writer_expr_of_type_decl ~env type_decl =
       let field_id = Attr.id ~loc:pcd.pcd_loc pcd.pcd_attributes in
       Exp.case (Pat.construct c (Some [%pat? _x]))
         [%expr
-          write_field_begin
-            [%e Exp.constant (Const_string (pcd.pcd_name.txt, None))]
-            [%e field_tag]
-            [%e Exp.constant (Const_int field_id)] >>=
-              fun () ->
+          write_union_begin
+            [%e ExpC.string name.txt] [%e ExpC.string pcd.pcd_name.txt]
+            [%e field_tag] [%e ExpC.int field_id] >>= fun () ->
           [%e writer_expr_of_core_type ~env field_type] _x
         ] in
-    let name_expr = Exp.constant (Const_string (name.txt, None)) in
     [%expr
       fun (_v : [%t Typ.constr (mkloc (Lident name.txt) name.loc) []]) ->
-      write_struct_begin [%e name_expr] >>= fun () ->
-      [%e Exp.match_ [%expr _v] (List.map mk_case pcds)] >>= fun () ->
-      write_field_end () >>= fun () ->
-      write_field_stop () >>= fun () ->
-      write_struct_end ()]
+      [%e Exp.match_ [%expr _v] (List.map mk_case pcds)] >>= write_union_end]
   | _ ->
     raise_errorf ~loc:type_decl.ptype_loc
                  "Cannot derive thrift methods for this kind of type."

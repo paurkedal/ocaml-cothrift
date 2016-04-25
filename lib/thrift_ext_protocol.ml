@@ -27,6 +27,30 @@ struct
 
   (* Types *)
 
+  let read_union read_value =
+    read_struct_begin () >>= fun union_name ->
+    read_field_begin () >>=
+      function
+      | None ->
+        fail (Protocol_error (Invalid_data, "Missing field in union."))
+      | Some (field_name, field_tag, field_id) ->
+        read_value union_name field_name field_tag field_id >>= fun x ->
+        read_field_end () >>= fun () ->
+        read_field_begin () >>=
+          function
+          | None -> read_struct_end () >>= fun () -> return x
+          | Some _ ->
+            fail (Protocol_error (Invalid_data, "Multiple fields in union."))
+
+  let write_union_begin union_name field_name field_tag field_id =
+    write_struct_begin union_name >>= fun () ->
+    write_field_begin field_name field_tag field_id
+
+  let write_union_end () =
+    write_field_stop () >>= fun () ->
+    write_field_end () >>= fun () ->
+    write_struct_end ()
+
   let read_list tag read_elt () =
     read_list_begin () >>= fun (tag', n) ->
     if tag <> tag' then

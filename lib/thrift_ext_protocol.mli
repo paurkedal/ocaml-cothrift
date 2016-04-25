@@ -23,6 +23,10 @@ module Make :
 sig
   open Io
 
+  val read_union : (string -> string -> tag -> int -> 'a io) -> 'a io
+  val write_union_begin : string -> string -> tag -> int -> unit io
+  val write_union_end : unit -> unit io
+
   val read_list : tag -> (unit -> 'a io) -> unit -> 'a list io
   val write_list : tag -> ('a -> unit io) -> 'a list -> unit io
 
