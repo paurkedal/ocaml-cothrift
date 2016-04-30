@@ -130,10 +130,18 @@ module type Protocol_functor = sig
     Out_protocol with type 'a io := 'a io
 end
 
-module type Processor =
+module type Processor = sig
+  type 'a io
+
+  type handler =
+    | Handler of (unit -> (bool * (unit -> unit io)) io)
+    | Handler_unit of bool * (unit -> unit io)
+
+  val handlers : (string, handler) Hashtbl.t
+end
+
+module type Processor_functor =
   functor (Io : Io) ->
   functor (Iprot : In_protocol with type 'a io := 'a Io.io) ->
   functor (Oprot : Out_protocol with type 'a io := 'a Io.io) ->
-sig
-  val run : unit -> 'a Io.io
-end
+  Processor with type 'a io := 'a Io.io

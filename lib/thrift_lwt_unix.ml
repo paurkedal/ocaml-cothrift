@@ -14,6 +14,8 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Printf
+open Thrift
 open Thrift_lwt
 
 module Thrift_transport = struct
@@ -35,15 +37,59 @@ module Thrift_transport = struct
 
 end
 
-module Thrift_server (Processor : Thrift_sig.Processor) = struct
+module Thrift_server (Processor_functor : Thrift_sig.Processor_functor) = struct
 
   let process flow ic oc =
     let module In_transport = (val Thrift_transport.of_input_channel ic) in
     let module Out_transport = (val Thrift_transport.of_output_channel oc) in
     let module In_protocol = Thrift_protocol_binary.In (In_transport) in
     let module Out_protocol = Thrift_protocol_binary.Out (Out_transport) in
-    let module Processor = Processor (Thrift_io) (In_protocol) (Out_protocol) in
-    Processor.run ()
+    let module Processor = Processor_functor (In_protocol) (Out_protocol) in
+    let open In_protocol in
+    let open Out_protocol in
+    let rec loop () =
+      let%lwt msg_name, msg_type, seqid = read_message_begin () in
+      let%lwt handler =
+        try Lwt.return (Hashtbl.find Processor.handlers msg_name)
+        with Not_found ->
+          let msg = sprintf "Method %s is not implemented." msg_name in
+          Lwt.fail (Protocol_error (Not_implemented, msg)) in
+      begin match msg_type with
+      | Call ->
+        begin match handler with
+        | Processor.Handler receive ->
+          let%lwt is_exn, respond = receive () in
+          read_message_end () >>
+          write_message_begin msg_name (if is_exn then Exception else Reply)
+                              seqid >>
+          respond () >>
+          write_message_end () >>
+          loop ()
+        | Processor.Handler_unit (is_oneway, receive) ->
+          receive () >>
+          read_message_end () >>
+          write_message_begin msg_name Reply seqid >>
+          write_struct_begin "void" >>
+          write_field_stop () >>
+          write_struct_end ()
+        end
+      | Oneway ->
+        begin match handler with
+        | Processor.Handler _ ->
+          let msg = sprintf "Invalid oneway call of %s which returns a value."
+                            msg_name in
+          Lwt.fail (Protocol_error (Invalid_data, msg))
+        | Processor.Handler_unit (is_oneway, receive) ->
+          receive () >>
+          read_message_end ()
+        end
+      | Reply ->
+        Lwt.fail (Protocol_error (Invalid_data, "Server received reply."))
+      | Exception ->
+        Lwt.fail (Protocol_error (Invalid_data, "Server received exception."))
+      end in
+    (* TODO: Handle and log protocol errors here. *)
+    loop ()
 
   let serve ?timeout ?stop ~ctx mode =
     Conduit_lwt_unix.serve ?timeout ?stop ~ctx ~mode process

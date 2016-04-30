@@ -23,7 +23,7 @@ module Thrift_transport : sig
     ?close: bool -> Lwt_io.output_channel -> (module Thrift_sig.Out_transport)
 end
 
-module Thrift_server (Processor : Thrift_sig.Processor) : sig
+module Thrift_server (Processor_functor : Thrift_sig.Processor_functor) : sig
   val serve : ?timeout: int -> ?stop: unit Lwt.t -> ctx: Conduit_lwt_unix.ctx ->
               Conduit_lwt_unix.server -> unit Lwt.t
 end
