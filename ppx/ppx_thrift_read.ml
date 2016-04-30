@@ -32,25 +32,28 @@ let reader_type_of_type_decl type_decl =
 let partial_field_ident pld =
   mkloc (Lident ("p_" ^ pld.pld_name.txt)) pld.pld_name.loc
 
+let partial_type_of_record name plds =
+  let to_raw pld =
+    let pld_type =
+      if Attr.default pld.pld_attributes = None then
+        match pld.pld_type.ptyp_desc with
+        | Ptyp_constr ({txt = Lident "option"}, _) -> pld.pld_type
+        | _ -> [%type: [%t pld.pld_type] option]
+      else
+        pld.pld_type in
+    { pld_name = mkloc ("p_" ^ pld.pld_name.txt) pld.pld_name.loc;
+      pld_mutable = Mutable;
+      pld_type;
+      pld_loc = pld.pld_loc;
+      pld_attributes = []; } in
+  Type.mk ~kind:(Ptype_record (List.map to_raw plds)) name
+
 let partial_type_of_type_decl type_decl =
   match type_decl.ptype_kind with
-  | Ptype_record fields ->
-    let to_raw pld =
-      let pld_type =
-        if Attr.default pld.pld_attributes = None then
-          match pld.pld_type.ptyp_desc with
-          | Ptyp_constr ({txt = Lident "option"}, _) -> pld.pld_type
-          | _ -> [%type: [%t pld.pld_type] option]
-        else
-          pld.pld_type in
-      { pld_name = mkloc ("p_" ^ pld.pld_name.txt) pld.pld_name.loc;
-        pld_mutable = Mutable;
-        pld_type;
-        pld_loc = pld.pld_loc;
-        pld_attributes = []; } in
-    [Type.mk ~kind:(Ptype_record (List.map to_raw fields))
-             (mkloc ("partial_" ^ type_decl.ptype_name.txt)
-                    type_decl.ptype_name.loc)]
+  | Ptype_record plds ->
+    let name = mkloc ("partial_" ^ type_decl.ptype_name.txt)
+                     type_decl.ptype_name.loc in
+    [partial_type_of_record name plds]
   | _ -> []
 
 let rec reader_expr_of_core_type ~env ?union_name ptyp =
@@ -102,75 +105,82 @@ let rec reader_expr_of_core_type ~env ?union_name ptyp =
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot derive thrift for %s."
                  (Ppx_deriving.string_of_core_type ptyp)
 
+let partial_reader_expr_of_record ~env ~struct_name plds cont =
+
+  let mk_field pld =
+    let name = mkloc (Lident ("p_" ^ pld.pld_name.txt)) pld.pld_name.loc in
+    match Attr.default pld.pld_attributes with
+    | None -> (name, [%expr None])
+    | Some e -> (name, e) in
+
+  let mk_setfield pld =
+    let field_id = Attr.id ~loc:pld.pld_loc pld.pld_attributes in
+    let msg = sprintf "Received wrong field type for %s.%s"
+                      struct_name pld.pld_name.txt in
+    let reader_expr =
+      reader_expr_of_core_type ~env (strip_option pld.pld_type) in
+    let is_opt = Attr.default pld.pld_attributes = None in
+    Exp.case (PatC.int field_id)
+      [%expr
+        if field_type <> [%e tag_expr_of_core_type ~env pld.pld_type] then
+          fail (Protocol_error (Invalid_data, [%e ExpC.string msg]))
+        else begin
+          [%e reader_expr] () >>= fun _x ->
+          [%e Exp.setfield [%expr _r] (partial_field_ident pld)
+                           (if is_opt then [%expr Some _x] else [%expr _x])];
+          _loop ()
+        end
+      ] in
+
+  let field_id_cases =
+    List.rev @@
+      Exp.case (Pat.any ()) [%expr _loop ()] ::
+      List.rev_map mk_setfield plds in
+  let msg = sprintf "Received wrong name for struct %s." struct_name in
+  [%expr
+    fun () ->
+    read_struct_begin () >>= fun name ->
+    if name <> "" && name <> [%e ExpC.string struct_name] then
+      fail (Protocol_error (Invalid_data, [%e ExpC.string msg])) else
+    let _r = [%e Exp.record (List.map mk_field plds) None] in
+    let rec _loop () =
+      read_field_begin () >>= function
+      | None -> [%e cont [%expr _r]]
+      | Some (_, field_type, field_id) ->
+        [%e Exp.match_ [%expr field_id] field_id_cases] in
+    _loop ()]
+
+let checked_reader_expr_of_record ~env ~struct_name plds scoped =
+  let mk_retcheck partial_record pld cont =
+    let _x = Exp.field partial_record (partial_field_ident pld) in
+    match Attr.default pld.pld_attributes, pld.pld_type.ptyp_desc with
+    | Some _, _ | _, Ptyp_constr ({txt = Lident "option"}, _) ->
+      [%expr
+        let [%p Pat.var pld.pld_name] = [%e _x] in
+        [%e cont]
+      ]
+    | _ ->
+      [%expr
+        match [%e _x] with
+        | Some [%p Pat.var pld.pld_name] -> [%e cont]
+        | None ->
+          fail (Protocol_error (Invalid_data, "Missing required field."))
+      ] in
+  partial_reader_expr_of_record ~env ~struct_name plds
+    (fun partial -> List.fold_right (mk_retcheck partial) plds scoped)
+
 let reader_expr_of_type_decl ~env type_decl =
   match type_decl.ptype_kind, type_decl.ptype_manifest with
   | Ptype_abstract, Some ptyp ->
     reader_expr_of_core_type ~env ptyp
-  | Ptype_record fields, _ ->
-    let _r = [%expr _r] in
-    let mk_field pld =
-      let name = mkloc (Lident ("p_" ^ pld.pld_name.txt)) pld.pld_name.loc in
-      match Attr.default pld.pld_attributes with
-      | None -> (name, [%expr None])
-      | Some e -> (name, e) in
-    let mk_setfield pld =
-      let field_id = Attr.id ~loc:pld.pld_loc pld.pld_attributes in
-      let msg = sprintf "Received wrong field type for %s.%s"
-                        type_decl.ptype_name.txt pld.pld_name.txt in
-      let reader_expr =
-        reader_expr_of_core_type ~env (strip_option pld.pld_type) in
-      let is_opt = Attr.default pld.pld_attributes = None in
-      Exp.case
-        (PatC.int field_id)
-        [%expr
-          if field_type <> [%e tag_expr_of_core_type ~env pld.pld_type] then
-            fail (Protocol_error (Invalid_data, [%e ExpC.string msg]))
-          else begin
-            [%e reader_expr] () >>= fun _x ->
-            [%e Exp.setfield _r (partial_field_ident pld)
-                             (if is_opt then [%expr Some _x] else [%expr _x])];
-            _loop ()
-          end
-        ] in
-    let mk_retcheck pld cont =
-      let name = mkloc (Lident pld.pld_name.txt) pld.pld_name.loc in
-      let _x = Exp.field _r (partial_field_ident pld) in
-      match Attr.default pld.pld_attributes, pld.pld_type.ptyp_desc with
-      | Some _, _ | _, Ptyp_constr ({txt = Lident "option"}, _) ->
-        [%expr
-          let [%p Pat.var pld.pld_name] = [%e _x] in
-          [%e cont]
-        ]
-      | _ ->
-        [%expr
-          match [%e _x] with
-          | Some [%p Pat.var pld.pld_name] -> [%e cont]
-          | None ->
-            fail (Protocol_error (Invalid_data, "Missing required field."))
-        ] in
+  | Ptype_record plds, _ ->
     let mk_retfield pld =
       let name = mkloc (Lident pld.pld_name.txt) pld.pld_name.loc in
       (name, Exp.ident name) in
     let struct_name = type_decl.ptype_name.txt in
-    let msg = sprintf "Received wrong name for struct %s." struct_name in
     let ret_expr =
-      List.fold_right mk_retcheck fields
-        [%expr return [%e (Exp.record (List.map mk_retfield fields) None)]] in
-    let field_id_cases =
-      List.rev (Exp.case (Pat.any ()) [%expr _loop ()] ::
-                List.rev_map mk_setfield fields) in
-    [%expr
-      fun () ->
-      read_struct_begin () >>= fun name ->
-      if name <> "" && name <> [%e ExpC.string struct_name] then
-        fail (Protocol_error (Invalid_data, [%e ExpC.string msg])) else
-      let _r = [%e Exp.record (List.map mk_field fields) None] in
-      let rec _loop () =
-        read_field_begin () >>= function
-        | None -> [%e ret_expr]
-        | Some (_, field_type, field_id) ->
-          [%e Exp.match_ [%expr field_id] field_id_cases] in
-      _loop ()]
+      [%expr return [%e (Exp.record (List.map mk_retfield plds) None)]] in
+    checked_reader_expr_of_record ~env ~struct_name plds ret_expr
   | Ptype_variant pcds, _ ->
     let mk_field_case pcd =
       let field_type =
