@@ -52,7 +52,8 @@ let type_decl_str ~env ~options ~path type_decls =
   let env = {env with env_path = path} in
   List.iter
     (fun type_decl ->
-      Hashtbl.add env.env_type_aliases type_decl.ptype_name.txt type_decl)
+      let qname = qualify_name env.env_path type_decl.ptype_name.txt in
+      Hashtbl.add env.env_type_aliases qname type_decl)
     type_decls;
   let preapp_stris =
     List.concat

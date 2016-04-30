@@ -23,7 +23,7 @@ open Parsetree
 
 type env = {
   env_path : string list;
-  env_type_aliases : (string, type_declaration) Hashtbl.t;
+  env_type_aliases : (Longident.t, type_declaration) Hashtbl.t;
   env_defined_modules : (string, string list) Hashtbl.t;
 }
 
@@ -100,6 +100,24 @@ let rec manifest_lid = function
   | Lident _ | Ldot _ as lid -> Mod.ident (mknoloc lid)
   | Lapply (f, a) -> Mod.apply (manifest_lid f) (manifest_lid a)
 
+let lookup_type_alias ~env lid =
+  let alias_path, alias_name =
+    match List.rev (Longident.flatten lid) with
+    | [] -> assert false
+    | pc :: pcs -> List.rev pcs, pc in
+  let rec loop cpath = function
+    | [] ->
+      Hashtbl.find env.env_type_aliases
+        (qualify_name (List.rev_append cpath alias_path) alias_name)
+    | pc :: pcs ->
+      begin
+        try loop (pc :: cpath) pcs
+        with Not_found ->
+          Hashtbl.find env.env_type_aliases
+            (qualify_name (List.rev_append cpath alias_path) alias_name)
+      end in
+  loop [] env.env_path
+
 let tag_name_of_constr_name = function
   | "unit"   -> Some ("Tag_unit", 0)
   | "bool"   -> Some ("Tag_bool", 0)
@@ -118,31 +136,35 @@ let tag_name_of_constr_name = function
   | "utf16"  -> Some ("Tag_utf16", 0)
   | _ -> None
 
+let tag_name_of_lid = function
+  | Ldot _ -> None
+  | Lapply _ -> None
+  | Lident name -> tag_name_of_constr_name name
+
 let rec tag_name_of_core_type ~env ptyp =
   let not_inferable () =
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot infer thrift type tag for %s."
                  (Ppx_deriving.string_of_core_type ptyp) in
   match ptyp.ptyp_desc with
-  | Ptyp_constr ({txt = Lident name; loc}, ptyps) ->
-    if name = "option" then
-      match ptyps with
-      | [ptyp] -> tag_name_of_core_type ~env ptyp
-      | _ -> raise_errorf ~loc:ptyp.ptyp_loc "option takes one parameter."
-    else begin
-      try tag_name_of_type_decl ~env (Hashtbl.find env.env_type_aliases name)
-      with Not_found ->
-        match tag_name_of_constr_name name with
-        | Some (tag, r) ->
-          if r <> List.length ptyps then
-            raise_errorf ~loc:ptyp.ptyp_loc "%s expects %d parameters." name r;
-          tag
-        | None -> not_inferable ()
-    end
+  | Ptyp_constr ({txt = Lident "option"; loc}, [ptyp]) ->
+    tag_name_of_core_type ~env ptyp
   | Ptyp_constr ({txt = Ldot (Lapply (fct, mdl), "t")}, ptyps) ->
     begin match fct with
     | Ldot (Lident "Set", "Make") -> "Tag_set"
     | Ldot (Lident "Map", "Make") -> "Tag_map"
     | _ -> not_inferable ()
+    end
+  | Ptyp_constr ({txt = lid; loc}, ptyps) ->
+    begin
+      try tag_name_of_type_decl ~env (lookup_type_alias ~env lid)
+      with Not_found ->
+        match tag_name_of_lid lid with
+        | Some (tag, r) ->
+          if r <> List.length ptyps then
+            raise_errorf ~loc:ptyp.ptyp_loc "%s expects %d parameters."
+                         (String.concat "." (Longident.flatten lid)) r;
+          tag
+        | None -> not_inferable ()
     end
   | _ -> not_inferable ()
 
