@@ -43,7 +43,7 @@ sig
   module Union : sig
     type t =
       | One of int32
-      | Many of int32 list
+      | Many of Set.Make (Int32).t
       [@@deriving thrift]
   end
 

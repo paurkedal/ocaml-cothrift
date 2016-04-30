@@ -22,11 +22,25 @@ open Longident
 open Parsetree
 
 type env = {
+  env_path : string list;
   env_type_aliases : (string, type_declaration) Hashtbl.t;
-  env_defined_modules : (string, unit) Hashtbl.t;
+  env_defined_modules : (string, string list) Hashtbl.t;
 }
 
 let deriver = "thrift"
+
+let rec relativize_path current_path target_path =
+  match current_path, target_path with
+  | x :: xs, y :: ys when x = y -> relativize_path xs ys
+  | _, _ -> target_path
+
+let qualify_name path name =
+  let rec loop acc = function
+    | [] -> Ldot (acc, name)
+    | pc :: pcs -> loop (Ldot (acc, pc)) pcs in
+  match path with
+  | [] -> Lident name
+  | pc :: pcs -> loop (Lident pc) pcs
 
 let mangle_type_decl pfx = Ppx_deriving.mangle_type_decl (`Prefix pfx)
 let mangle_lid pfx = Ppx_deriving.mangle_lid (`Prefix pfx)
@@ -69,11 +83,16 @@ let rec collection_module_name ?loc = function
   | _ ->
     raise_errorf ?loc "Unrecognized collection functor application."
 
-let mangle_io_lid ?loc mthd = function
+let mangle_io_lid ~env ?loc mthd = function
   | Lident _ as lid -> mangle_lid mthd lid
   | Ldot (m, "t") ->
     let cmn = collection_module_name ?loc m in
-    Ldot (Lident (if lid_is_simple m then cmn else cmn ^ "_io"), mthd)
+    if lid_is_simple m then Ldot (Lident cmn, mthd) else
+    let definition_path =
+      try
+        relativize_path env.env_path (Hashtbl.find env.env_defined_modules cmn)
+      with Not_found -> [] in
+    Ldot (qualify_name definition_path (cmn ^ "_io"), mthd)
   | Ldot (_, _) | Lapply (_, _) ->
     raise_errorf ?loc "Expecting a plain type name or t-component of a module."
 

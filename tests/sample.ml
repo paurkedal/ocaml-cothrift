@@ -27,8 +27,6 @@ struct
   open Oprot
   include Thrift_ext_protocol.Make (Io) (Iprot) (Oprot)
 
-  module Set_of_Int32_io = Set_io (Set.Make (Int32)) (Int32_io)
-
   module Stuff = struct
     type t = {
       a_bool : bool [@thrift.id 1] [@thrift.default false];
@@ -50,7 +48,7 @@ struct
   module Union = struct
     type t =
       | One of int32 [@thrift.id 2]
-      | Many of int32 list [@thrift.id 3]
+      | Many of Set.Make (Int32).t [@thrift.id 3]
       [@@deriving thrift]
   end
 

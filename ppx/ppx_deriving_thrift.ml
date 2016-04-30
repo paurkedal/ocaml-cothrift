@@ -36,6 +36,7 @@ let sig_of_type ~options ~path type_decl =
 
 let str_of_type ~env ~options ~path type_decl =
   let () = parse_options options in
+  let env = {env with env_path = path} in
   let reader_type = reader_type_of_type_decl type_decl in
   let reader_expr = reader_expr_of_type_decl ~env type_decl in
   let reader_var = pvar (mangle_type_decl "read" type_decl) in
@@ -48,12 +49,14 @@ let str_of_type ~env ~options ~path type_decl =
          (Ppx_deriving.poly_fun_of_type_decl type_decl writer_expr)]
 
 let type_decl_str ~env ~options ~path type_decls =
+  let env = {env with env_path = path} in
   List.iter
     (fun type_decl ->
       Hashtbl.add env.env_type_aliases type_decl.ptype_name.txt type_decl)
     type_decls;
   let preapp_stris =
-    List.concat (List.map (preapplications_of_type_decl ~env) type_decls) in
+    List.concat
+      (List.map (preapplications_of_type_decl ~env ~path) type_decls) in
   let method_stris =
     match List.concat (List.map partial_type_of_type_decl type_decls),
           List.concat (List.map (str_of_type ~env ~options ~path) type_decls)
@@ -65,13 +68,16 @@ let type_decl_str ~env ~options ~path type_decls =
   preapp_stris @ method_stris
 
 let module_type_decl_sig ~env ~options ~path mtd =
+  let env = {env with env_path = path} in
   [client_sig_of_module_type ~env mtd]
 
 let module_type_decl_str ~env ~options ~path mtd =
+  let env = {env with env_path = path} in
   [client_str_of_module_type ~env mtd]
 
 let () =
   let env = {
+    env_path = [];
     env_type_aliases = Hashtbl.create 31;
     env_defined_modules = Hashtbl.create 32;
   } in

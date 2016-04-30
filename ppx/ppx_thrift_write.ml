@@ -32,7 +32,7 @@ let rec writer_expr_of_core_type ~env ?union_name ptyp =
   let loc = ptyp.ptyp_loc in
   match ptyp.ptyp_desc with
   | Ptyp_constr ({txt = lid; loc}, ptyps) ->
-    let f = Exp.ident (mkloc (mangle_io_lid ~loc "write" lid) loc) in
+    let f = Exp.ident (mkloc (mangle_io_lid ~env ~loc "write" lid) loc) in
     let tagged_writer ptyp =
       let tag = tag_expr_of_core_type ~env ptyp in
       let w = writer_expr_of_core_type ~env ptyp in
