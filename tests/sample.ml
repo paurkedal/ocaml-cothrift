@@ -61,7 +61,7 @@ struct
   end
 
   module type Arpeecee = sig
-    val f : x: (Stuff.t [@thrift.id 1]) -> unit -> [`Ok of Union.t] io
+    val f : x: (Stuff.t [@thrift.id 1]) -> unit -> Union.t io
     val sum : elements: (Set.Make (Int32).t [@thrift.id 1]) -> unit ->
           [ `Ok of int32
           | `Unix_error of Unix_error.t [@thrift.id 1]

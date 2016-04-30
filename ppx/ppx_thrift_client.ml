@@ -41,37 +41,6 @@ let label_of_exception_type ptyp =
   | _ ->
     raise_errorf "Error type must be named."
 
-let result_reader ~env res_type exns =
-  let case_ok =
-    let tag = tag_pat_of_core_type ~env res_type in
-    let reader = reader_expr_of_core_type ~env res_type in
-    Exp.case [%pat? Some (field_name, [%p tag], 0)]
-      [%expr [%e reader] () >|= fun r -> `Ok r] in
-  let case_exn (field_id, field_type) =
-    let tag = tag_pat_of_core_type ~env field_type in
-    let reader = reader_expr_of_core_type ~env field_type in
-    let label = label_of_exception_type field_type in
-    Exp.case [%pat? Some (field_name, [%p tag], [%e Const.int field_id])]
-      [%expr
-        [%e reader] () >|= fun _exn ->
-        [%e Exp.variant label (Some [%expr _exn])]
-      ] in
-  let case_none =
-    Exp.case [%pat? None]
-      [%expr fail (Protocol_error (Invalid_data, "Missing result field."))] in
-  let cases = case_none :: case_ok :: (List.map case_exn exns) in
-  [%expr
-    fun () ->
-      read_struct_begin () >>= fun _ ->
-      read_field_begin () >>=
-        [%e Exp.function_ cases] >>= fun r ->
-      read_field_end () >>= fun () ->
-      read_struct_end () >>= fun () ->
-      match r with
-      | `Ok y -> return y
-      | `Fail exn -> fail exn
-  ]
-
 let method_impl ~env = function
   | {psig_desc = Psig_value pval} ->
     let rec aux arg_fields = function
@@ -85,10 +54,19 @@ let method_impl ~env = function
                           [%expr write_field_stop ()] in
         let res_reader =
           reader_expr_of_core_type ~env ~union_name:name.txt rt in
+        let res_reader_callback =
+          if is_exception_variant rt then
+            [%expr fun is_exn -> [%e res_reader] ()]
+          else
+            [%expr fun is_exn ->
+              read_struct_begin () >>= fun _ ->
+              [%e res_reader] () >>= fun r ->
+              read_struct_end () >|= fun () -> r
+            ] in
         [%expr
           fun () ->
             call [%e ExpC.string name.txt]
-                 (fun () -> [%e arg_writer]) (fun is_exn -> [%e res_reader] ())
+                 (fun () -> [%e arg_writer]) [%e res_reader_callback]
         ]
       | {ptyp_desc = Ptyp_arrow (label, at, rt)} ->
         let attrs = at.ptyp_attributes in

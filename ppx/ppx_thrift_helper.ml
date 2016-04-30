@@ -171,6 +171,7 @@ let rec tag_name_of_core_type ~env ptyp =
 and tag_name_of_type_decl ~env type_decl =
   match type_decl.ptype_kind, type_decl.ptype_manifest with
   | Ptype_abstract, Some ptyp -> tag_name_of_core_type ~env ptyp
+  | Ptype_variant _, _
   | Ptype_record _, _ -> "Tag_struct"
   | _ -> assert false
 
@@ -193,3 +194,9 @@ let strip_option ptyp =
   match ptyp.ptyp_desc with
   | Ptyp_constr ({txt = Lident "option"}, [ptyp]) -> ptyp
   | _ -> ptyp
+
+let is_exception_variant = function
+  | {ptyp_desc = Ptyp_variant (fields, Closed, None)} ->
+    let is_ok_field = function Rtag ("Ok", _, _, _) -> true | _ -> false in
+    List.exists is_ok_field fields
+  | _ -> false
