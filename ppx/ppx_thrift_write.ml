@@ -28,7 +28,8 @@ let writer_type_of_type_decl type_decl =
     (fun var -> [%type: [%t var] -> unit io]) type_decl
     [%type: [%t typ] -> unit io]
 
-let rec writer_expr_of_core_type ~env ptyp =
+let rec writer_expr_of_core_type ~env ?union_name ptyp =
+  let loc = ptyp.ptyp_loc in
   match ptyp.ptyp_desc with
   | Ptyp_constr ({txt = lid; loc}, ptyps) ->
     let f = Exp.ident (mkloc (mangle_io_lid ~loc "write" lid) loc) in
@@ -37,6 +38,42 @@ let rec writer_expr_of_core_type ~env ptyp =
       let w = writer_expr_of_core_type ~env ptyp in
       [tag; w] in
     app f (List.flatten (List.map tagged_writer ptyps))
+  | Ptyp_variant (rows, Closed, None) ->
+    let union_name =
+      match union_name with
+      | None -> raise_errorf ~loc "Cannot create writer for anonymous variant."
+      | Some name -> name in
+    let mk_field_case = function
+      | Rtag ("Ok", [], _, [arg_type]) ->
+        let writer = writer_expr_of_core_type ~env arg_type in
+        Exp.case [%pat? `Ok _x]
+          [%expr
+            write_union_begin
+              [%e ExpC.string union_name] "success"
+              [%e tag_expr_of_core_type ~env arg_type] 0 >>=
+            fun () -> [%e writer] _x
+          ]
+      | Rtag (row_label, row_attributes, _, [arg_type]) ->
+        let field_id = Attr.id ~loc row_attributes in
+        let writer = writer_expr_of_core_type ~env arg_type in
+        Exp.case (Pat.variant row_label (Some [%pat? _x]))
+          [%expr
+            write_union_begin
+              [%e ExpC.string union_name] [%e ExpC.string row_label]
+              [%e tag_expr_of_core_type ~env arg_type]
+              [%e ExpC.int field_id] >>=
+            fun () -> [%e writer] _x
+          ]
+      | Rtag (_, _, _, _) ->
+        raise_errorf ~loc "Thrift union constructors must take a single \
+                           argument."
+      | Rinherit t ->
+        raise_errorf ~loc "Only expanded variant types supported" in
+    [%expr
+      fun v ->
+        [%e Exp.match_ [%expr v] (List.map mk_field_case rows)] >>=
+        write_union_end
+    ]
   | _ ->
     raise_errorf ~loc:ptyp.ptyp_loc "Cannot derive thrift writer for %s."
                  (Ppx_deriving.string_of_core_type ptyp)
