@@ -26,6 +26,7 @@ open Ppx_thrift_preapply
 open Ppx_thrift_read
 open Ppx_thrift_write
 open Ppx_thrift_client
+open Ppx_thrift_processor
 
 let sig_of_type ~options ~path type_decl =
   let () = parse_options options in
@@ -70,11 +71,13 @@ let type_decl_str ~env ~options ~path type_decls =
 
 let module_type_decl_sig ~env ~options ~path mtd =
   let env = {env with env_path = path} in
-  [client_sig_of_module_type ~env mtd]
+  [client_sig_of_module_type ~env mtd;
+   processor_sig_of_module_type ~env mtd]
 
 let module_type_decl_str ~env ~options ~path mtd =
   let env = {env with env_path = path} in
-  [client_str_of_module_type ~env mtd]
+  [client_str_of_module_type ~env mtd;
+   processor_str_of_module_type ~env mtd]
 
 let () =
   let env = {

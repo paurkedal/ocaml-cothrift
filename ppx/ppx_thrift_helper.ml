@@ -49,11 +49,15 @@ let parse_options = List.iter @@ fun (name, pexp) ->
   raise_errorf ~loc:pexp.pexp_loc "The thrift deriver takes no option %s." name
 
 module ExpC = struct
+  let bool ?loc ?attrs x =
+    Exp.construct ?loc ?attrs (mknoloc (Lident (string_of_bool x))) None
   let int ?loc ?attrs x = Exp.constant ?loc ?attrs (Const_int x)
   let string ?loc ?attrs x = Exp.constant ?loc ?attrs (Const_string (x, None))
 end
 
 module PatC = struct
+  let bool ?loc ?attrs x =
+    Pat.construct ?loc ?attrs (mknoloc (Lident (string_of_bool x))) None
   let int ?loc ?attrs x = Pat.constant ?loc ?attrs (Const_int x)
   let string ?loc ?attrs x = Pat.constant ?loc ?attrs (Const_string (x, None))
 end

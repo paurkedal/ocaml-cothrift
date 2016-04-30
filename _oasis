@@ -50,6 +50,7 @@ Library ppx_deriving_thrift
     Ppx_thrift_client,
     Ppx_thrift_helper,
     Ppx_thrift_preapply,
+    Ppx_thrift_processor,
     Ppx_thrift_read,
     Ppx_thrift_write
   BuildDepends: ppx_deriving.api
