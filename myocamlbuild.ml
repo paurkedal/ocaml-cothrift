@@ -1,5 +1,10 @@
 open Ocamlbuild_plugin
 
+let ppx_deriving = lazy begin
+  Filename.concat (String.trim (run_and_read "ocamlfind -query ppx_deriving"))
+                  "ppx_deriving"
+end
+
 let () =
   rule "pkg/META -> lib/META"
     ~dep:"pkg/META" ~prod:"lib/META"
@@ -12,6 +17,26 @@ let () =
     begin fun env build ->
       let src = env "%.mli" and dst = env "%.ml" in
       cp src dst
+    end;
+  rule "%.mli -> %_gen.mli (testing)"
+    ~deps:["%.mli"; "ppx/ppx_deriving_thrift.cma"] ~prod:"%_gen.mli"
+    begin fun env build ->
+      let src = env "%.mli" and dst = env "%_gen.mli" in
+      Cmd (S[
+        A"ocamlfind"; A"ppx_tools/rewriter";
+        A"-ppx"; A(Lazy.force ppx_deriving ^ " ppx/ppx_deriving_thrift.cma");
+        A"-o"; Px dst; A"-intf"; P src
+      ])
+    end;
+  rule "%.ml -> %_gen.ml (testing)"
+    ~deps:["%.ml"; "ppx/ppx_deriving_thrift.cma"] ~prod:"%_gen.ml"
+    begin fun env build ->
+      let src = env "%.ml" and dst = env "%_gen.ml" in
+      Cmd (S[
+        A"ocamlfind"; A"ppx_tools/rewriter";
+        A"-ppx"; A(Lazy.force ppx_deriving ^ " ppx/ppx_deriving_thrift.cma");
+        A"-o"; Px dst; P src
+      ])
     end
 
 let () = dispatch begin function
