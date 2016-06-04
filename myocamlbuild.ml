@@ -1,14 +1,25 @@
-(* OASIS_START *)
-(* OASIS_STOP *)
+open Ocamlbuild_plugin
 
-let () = List.iter mark_tag_used ["tests"; "pkg_conduit.lwt-unix"]
+let () =
+  rule "pkg/META -> lib/META"
+    ~dep:"pkg/META" ~prod:"lib/META"
+    begin fun env build ->
+      Cmd (S[A"sed"; A"/^\\s*requires =/ s/\\<cothrift\\>/lib/g";
+             P"pkg/META"; Sh">"; Px"lib/META"])
+    end;
+  rule "%.mli & %.idem -> %.ml"
+    ~deps:["%.mli"; "%.idem"] ~prod:"%.ml"
+    begin fun env build ->
+      let src = env "%.mli" and dst = env "%.ml" in
+      cp src dst
+    end
 
 let () = dispatch begin function
 
   | Before_options ->
     Options.use_ocamlfind := true
 
-  | After_rules as e ->
+  | After_rules ->
     flag ["doc"; "ocaml"; "extension:html"] &
       S[A"-charset"; A"utf8"; A"-t"; A"OCaml runtime for the Apache Thrift RPC system"];
 
@@ -17,9 +28,6 @@ let () = dispatch begin function
     flag ["ocaml"; "compile"; "ppx_deriving_thrift"] &
       S[A"-ppxopt"; A"ppx_deriving,ppx/ppx_deriving_thrift.cma"];
 
-    dispatch_default e
-
-  | e ->
-    dispatch_default e
+  | _ -> ()
 
 end

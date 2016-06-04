@@ -1,0 +1,41 @@
+description = "OCaml Thrift Runtime"
+version = "%%VERSION_NUM%%"
+requires = ""
+
+archive(byte) = "cothrift.cma"
+archive(native) = "cothrift.cmxa"
+plugin(byte) = "cothrift.cma"
+plugin(native) = "cothrift.cmxs"
+
+package "lwt" (
+  version = "%%VERSION_NUM%%"
+  description = "OCaml Thrift Runtime for Lwt"
+  requires = "cothrift lwt"
+  archive(byte) = "cothrift-lwt.cma"
+  archive(native) = "cothrift-lwt.cmxa"
+  plugin(byte) = "cothrift-lwt.cma"
+  plugin(native) = "cothrift-lwt.cmxs"
+  exists_if = "cothrift-lwt.cma"
+)
+
+package "lwt-unix" (
+  version = "%%VERSION_NUM%%"
+  description = "OCaml Thrift Runtime for Lwt using the Unix module"
+  requires = "cothrift.lwt conduit.lwt-unix lwt.unix"
+  archive(byte) = "cothrift-lwt-unix.cma"
+  archive(native) = "cothrift-lwt-unix.cmxa"
+  plugin(byte) = "cothrift-lwt-unix.cma"
+  plugin(native) = "cothrift-lwt-unix.cmxs"
+  exists_if = "cothrift-lwt-unix.cma"
+)
+
+package "ppx" (
+  version = "%%VERSION_NUM%%"
+  description = "Syntax extension for Generated Thrift Code"
+  requires(-ppx_driver) = "ppx_deriving ppx_tools"
+  ppxopt(-ppx_driver) = "ppx_deriving,./ppx_deriving_thrift.cma"
+  requires(ppx_driver) = "ppx_deriving.api ppx_tools"
+  archive(ppx_driver, byte) = "ppx_deriving_thrift.cma"
+  archive(ppx_driver, native) = "ppx_deriving_thrift.cmxa"
+  exists_if = "ppx_deriving_thrift.cma"
+)

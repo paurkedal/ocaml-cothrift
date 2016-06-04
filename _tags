@@ -1,0 +1,5 @@
+"lib/thrift_lwt_unix.ml": package(lwt.ppx)
+<lib/thrift_lwt*>: package(lwt)
+<lib/thrift_lwt_unix*>: package(lwt.unix), package(conduit.lwt)
+<ppx/*>: package(ppx_deriving), package(ppx_tools.metaquot)
+<tests/*>: package(lib.lwt-unix), package(oUnit)
